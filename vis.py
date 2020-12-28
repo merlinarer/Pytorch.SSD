@@ -1,7 +1,3 @@
-'''
-Code Updated By: Sayak Banerjee
-'''
-
 '''Object Detection using SSD'''
 
 # Importing the libraries
@@ -24,7 +20,6 @@ labelmap = (  # always index 0
     'sheep', 'sofa', 'train', 'tvmonitor')
 
 '''Defining the function to perform Detections'''
-
 
 def detect(frame, net, transform):
     height, width, _ = frame.shape
