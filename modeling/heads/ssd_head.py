@@ -1,0 +1,87 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from modeling.utils import detection
+from modeling.utils import anchor_generator
+
+__all__ = [
+    "SSDHead",
+]
+
+
+def conv3x3(in_planes, out_planes, padding=1):
+    """3x3 convolution with padding."""
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        padding=padding)
+
+
+class SSDHead(nn.Module):
+    def __init__(self,
+                 num_classes=21,
+                 phase='train',
+                 anchor_num=(4, 6, 6, 6, 4, 4),
+                 in_channels=(512, 1024, 512, 256, 256, 256)):
+        super().__init__()
+        assert len(anchor_num) == 6
+        self.phase = phase
+        self.num_classes = num_classes
+        self.in_channels = in_channels
+        reg_convs = []
+        cls_convs = []
+        for i, ou in enumerate(anchor_num):
+            inplanes = self.in_channels[i]
+            reg_convs.append(conv3x3(inplanes, ou * 4, padding=1))
+            cls_convs.append(conv3x3(inplanes, ou * self.num_classes, padding=1))
+
+        self.reg_convs = nn.ModuleList(reg_convs)
+        self.cls_convs = nn.ModuleList(cls_convs)
+
+        if self.phase == 'test':
+            self.softmax = nn.Softmax(dim=-1)
+            self.detect = detection.Detect()
+
+    def init_weights(self, pretrained=None):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight.item(), 1)
+                nn.init.constant_(m.bias.item(), 0)
+
+    def forward(self, x):
+        cls_scores = []
+        bbox_preds = []
+        for feat, reg_conv, cls_conv in zip(x, self.reg_convs,
+                                            self.cls_convs):
+            cls_scores.append(cls_conv(feat).permute(0, 2, 3, 1).contiguous())
+            bbox_preds.append(reg_conv(feat).permute(0, 2, 3, 1).contiguous())
+
+        if self.phase == "test":
+            output = self.detect.apply(21, 0, 200, 0.01, 0.45,
+                                       torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
+                                       self.softmax(
+                                           torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)),
+                                       torch.tensor(anchor_generator.AnchorGenerator()(), dtype=torch.float).cuda()
+                                       )
+        else:
+            output = (
+                torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
+                torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)
+            )
+
+        # from IPython import embed
+        # embed()
+
+        return output
+
+
+if __name__ == '__main__':
+    network = SSDHead()
+    print(network)
+    network.init_weights()
