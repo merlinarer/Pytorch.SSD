@@ -110,7 +110,7 @@ class Detect(Function):
         if nms_thresh <= 0:
             raise ValueError('nms_threshold must be non negative.')
         self.conf_thresh = conf_thresh
-        self.variance = [0.1, 0.2]
+        self.variance = [1, 1]
         num = loc_data.size(0)  # batch size
         num_priors = prior_data.size(0)
         output = torch.zeros(num, self.num_classes, self.top_k, 5)

@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+__all__ = [
+    "VGG",
+]
+
+
 def conv3x3(in_planes, out_planes, dilation=1):
     """3x3 convolution with padding."""
     return nn.Conv2d(

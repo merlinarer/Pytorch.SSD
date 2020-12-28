@@ -22,7 +22,7 @@ import cv2
 
 
 # Custom Dataset
-class MyDataset(Dataset):
+class CustomDataset(Dataset):
     def __init__(self, root=None, transform=None, type='train'):
         self.type = type
         with open(root, 'r') as f:
@@ -65,35 +65,7 @@ class MyDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        return (img, int(label))
-
-
-class resizeNormalize(object):
-
-    def __init__(self, size, interpolation=Image.BILINEAR):
-        self.size = size
-        self.interpolation = interpolation
-        self.toTensor = transforms.ToTensor()
-
-    def __call__(self, img):
-        # padding
-        ratio = self.size[0] / self.size[1]
-        w, h = img.size
-        if w / h < ratio:
-            t = int(h * ratio)
-            w_padding = (t - w) // 2
-            img = img.crop((-w_padding, 0, w + w_padding, h))
-        else:
-            t = int(w / ratio)
-            h_padding = (t - h) // 2
-            img = img.crop((0, -h_padding, w, h + h_padding))
-
-        # img.show()
-        # resize
-        img = img.resize(self.size, self.interpolation)
-        img = self.toTensor(img)
-        img.sub_(0.5).div_(0.5)
-        return img
+        return img, int(label)
 
 
 # VOC Dataset
@@ -109,7 +81,7 @@ class MyVOCDataset(Dataset):
         self.list_file = []
         self.label = []
         self.transform = transform
-        image_sets_file = os.path.join(self.root, "ImageSets", "Main", "trainval.txt")
+        image_sets_file = os.path.join(self.root, "ImageSets", "Main", "{}.txt".format(type))
         with open(image_sets_file, 'r') as f:
             for line in f.readlines():
                 line = line.rstrip('\n')
@@ -149,7 +121,7 @@ class MyVOCDataset(Dataset):
 
         assert len(box) == len(label)
 
-        return torch.tensor(img).permute(2, 0, 1), box, label
+        return torch.tensor(img).permute(2, 0, 1), box, label, h, w
 
     def labelpaser(self, img, h, w):
         annotation_file = os.path.join(self.root, "Annotations", "%s.xml" % img)
@@ -163,7 +135,7 @@ class MyVOCDataset(Dataset):
             y1 = float(bbox.find('ymin').text) - 1
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
-            boxes.append([x1/w, y1/h, x2/w, y2/h])
+            boxes.append([x1 / w, y1 / h, x2 / w, y2 / h])
             labels.append(self.class_dict[class_name])
 
         return (np.array(boxes, dtype=np.float32),

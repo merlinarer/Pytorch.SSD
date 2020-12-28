@@ -140,7 +140,7 @@ class AnchorGenerator:
 
 if __name__ == '__main__':
     import cv2
-    num = 20
+    num = 100
     a = AnchorGenerator()
     print(a().shape)  # (8732, 4)
     print(a()[0])  # (8732, 4)

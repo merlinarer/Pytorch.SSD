@@ -4,8 +4,10 @@ import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
 
-# from ..utils.anchor_generator import AnchorGenerator
-from modeling.utils import anchor_generator
+
+__all__ = [
+    "SSDLoss",
+]
 
 
 def intersect(box_a, box_b):
@@ -53,13 +55,13 @@ class SSDLoss:
                  variances=None,
                  neg_pos_ratio=3):
         if variances is None:
-            variances = [0.1, 0.2]
+            variances = [1, 1]
         self.num_classes = num_classes
         self.overlap_thresh = overlap_thresh
         self.variances = variances
         self.neg_pos_ratio = neg_pos_ratio
 
-    def __call__(self, pred_bb, pred_label, gt_bb, gt_label):
+    def __call__(self, pred_bb, pred_label, gt_bb, gt_label, anchor):
         """SSDLoss
                 Args:
                     pred_bb shape: (batch_size,num_anchor,4)
@@ -67,8 +69,6 @@ class SSDLoss:
                     gt_bb shape: (batch_size,num_anchor,4)
                     gt_label shape: (batch_size,num_anchor)
                 """
-        anchor = torch.tensor(anchor_generator.AnchorGenerator()(), dtype=torch.float).cuda()
-
         assert len(pred_bb) == len(pred_label) == len(gt_bb) == len(gt_label)
         bs = len(pred_bb)
         num_anchor = anchor.shape[0]
@@ -107,6 +107,7 @@ class SSDLoss:
         # loc_t = loc_t.cuda()  # (bs, num_anchor, 4)
         # conf_t = conf_t.cuda()  # (bs, num_anchor)
         # bb loss
+
         pos = conf_t > 0  # (bs, num_anchor)
         loc_t = loc_t[pos]
         loc_p = pred_bb[pos]
@@ -142,8 +143,12 @@ class SSDLoss:
         loss_c = F.cross_entropy(conf_p, targets_label, reduction='sum')
 
         N = num_pos.data.sum()
-        loss_l /= N
-        loss_c /= N
+        if N == 0:
+            loss_l = 0
+            loss_c = 0
+        else:
+            loss_l /= N
+            loss_c /= N
 
         # from IPython import embed
         # embed()

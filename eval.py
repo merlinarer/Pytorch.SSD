@@ -53,7 +53,7 @@ parser.add_argument('--top_k', default=5, type=int,
                     help='Further restrict the number of predictions to parse')
 parser.add_argument('--cuda', default=True, type=str2bool,
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default='/home/workspace/merlin/data_dirs/VOCdevkit/',
+parser.add_argument('--voc_root', default='/home/workspace/merlin/data_dirs/VOCdevkit/VOCdevkit/',
                     help='Location of VOC root directory')
 parser.add_argument('--cleanup', default=True, type=str2bool,
                     help='Cleanup and remove results files following eval')
@@ -80,7 +80,7 @@ imgsetpath = os.path.join(args.voc_root, 'VOC2007', 'ImageSets',
 YEAR = '2007'
 devkit_path = args.voc_root + 'VOC' + YEAR
 dataset_mean = (104, 117, 123)
-set_type = 'trainval'
+set_type = 'test'
 
 
 class Timer(object):
@@ -159,6 +159,7 @@ def write_voc_results_file(all_boxes, dataset):
                 dets = all_boxes[cls_ind+1][im_ind]
                 if dets == []:
                     continue
+                print(dets)
                 # the VOCdevkit expects 1-based indices
                 for k in range(dets.shape[0]):
                     f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
@@ -383,8 +384,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     det_file = os.path.join(output_dir, 'detections.pkl')
 
     for i in range(num_images):
-        im, bb, lb = dataset.__getitem__(i)
-        gt, h, w = np.concatenate([bb, lb[:, np.newaxis]], 1), im.shape[0], im.shape[1]
+        im, _, _, h, w = dataset.__getitem__(i)
 
         x = Variable(im.unsqueeze(0))
         if args.cuda:
@@ -392,6 +392,9 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
         _t['im_detect'].tic()
         detections = net(x).data
         detect_time = _t['im_detect'].toc(average=False)
+
+        # from IPython import embed
+        # embed()
 
         # skip j = 0, because it's the background class
         for j in range(1, detections.size(1)):
@@ -409,6 +412,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
             cls_dets = np.hstack((boxes.cpu().numpy(),
                                   scores[:, np.newaxis])).astype(np.float32,
                                                                  copy=False)
+            # print(cls_dets)
             all_boxes[j][i] = cls_dets
 
         print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
@@ -435,7 +439,7 @@ if __name__ == '__main__':
     print('Finished loading model!')
     # load data
     from data import BaseTransform
-    dataset = MyVOCDataset(root=devkit_path, transform=BaseTransform(), type='test')
+    dataset = MyVOCDataset(root=devkit_path, transform=BaseTransform(), type=set_type)
     # dataset = VOCDetection(args.voc_root, [('2007', set_type)],
     #                        BaseTransform(300, dataset_mean),
     #                        VOCAnnotationTransform())

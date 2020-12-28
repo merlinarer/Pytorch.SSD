@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from modeling.utils import detection
 from modeling.utils import anchor_generator
 
@@ -10,7 +11,6 @@ __all__ = [
 
 
 def conv3x3(in_planes, out_planes, padding=1):
-    """3x3 convolution with padding."""
     return nn.Conv2d(
         in_planes,
         out_planes,
@@ -43,6 +43,8 @@ class SSDHead(nn.Module):
             self.softmax = nn.Softmax(dim=-1)
             self.detect = detection.Detect()
 
+        self.anchor = Variable(torch.tensor(anchor_generator.AnchorGenerator()(), dtype=torch.float), requires_grad=False)
+
     def init_weights(self, pretrained=None):
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -67,12 +69,13 @@ class SSDHead(nn.Module):
                                        torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
                                        self.softmax(
                                            torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)),
-                                       torch.tensor(anchor_generator.AnchorGenerator()(), dtype=torch.float).cuda()
+                                       self.anchor.cuda()
                                        )
         else:
             output = (
                 torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
-                torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)
+                torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1),
+                self.anchor.cuda()
             )
 
         # from IPython import embed
