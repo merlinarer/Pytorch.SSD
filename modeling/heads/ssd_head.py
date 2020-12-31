@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from modeling.utils.nms import Detect
-from modeling.utils import anchor
+
 
 __all__ = [
     "SSDHead",
@@ -23,6 +23,7 @@ class SSDHead(nn.Module):
                  num_classes=21,
                  nms=False,
                  variance=None,
+                 prior=None,
                  anchor_num=(4, 6, 6, 6, 4, 4),
                  in_channels=(512, 1024, 512, 256, 256, 256)):
         super().__init__()
@@ -46,8 +47,6 @@ class SSDHead(nn.Module):
                              conf_thresh=0.01,
                              nms_thresh=0.45,
                              variance=variance)
-
-        prior = anchor.AnchorGenerator()()
         self.anchor = Variable(torch.tensor(prior, dtype=torch.float),
                                requires_grad=False)
 

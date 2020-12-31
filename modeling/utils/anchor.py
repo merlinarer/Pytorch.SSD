@@ -135,6 +135,8 @@ class AnchorGenerator:
 
             total_anchor.append(anchor.reshape(-1, 4))
 
+        # from IPython import embed
+        # embed()
         return np.clip(np.concatenate(total_anchor, 0), a_min=0, a_max=1)
 
 

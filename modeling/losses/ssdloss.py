@@ -71,8 +71,7 @@ class SSDLoss:
 
         pos = conf_t > 0  # (bs, num_anchor)
         loc_t = loc_t[pos]
-        from IPython import embed
-        embed()
+
         loc_p = pred_bb[pos]
         loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
 

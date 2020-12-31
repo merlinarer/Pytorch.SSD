@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from .backbones import VGG
 from .heads import SSDHead
+from modeling.utils import anchor
 
 
 class SSD(nn.Module):
@@ -10,8 +11,9 @@ class SSD(nn.Module):
                  variance=None,
                  num_classes=80):
         super().__init__()
+        self.prior = anchor.AnchorGenerator()()
         self.backbone = VGG(depth=16, input_size=300)
-        self.head = SSDHead(num_classes=num_classes, nms=nms, variance=variance)
+        self.head = SSDHead(num_classes=num_classes, nms=nms, variance=variance, prior=self.prior)
 
     def init_weights(self, pretrained=None):
         self.backbone.init_weights(pretrained=pretrained)
