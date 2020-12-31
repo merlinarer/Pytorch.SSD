@@ -114,7 +114,7 @@ class VGG(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight.item(), 1)
                 nn.init.constant_(m.bias.item(), 0)
-            self.constant_init(self.l2_norm, self.l2_norm.scale)
+        self.constant_init(self.l2_norm, self.l2_norm.scale)
 
     def forward(self, x):
         outs = []

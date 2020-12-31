@@ -3,49 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
+from modeling.utils.coder import encode, decode
+from modeling.utils.iou import intersect, cal_iou_matrix, point_form
 
 
 __all__ = [
     "SSDLoss",
 ]
-
-
-def intersect(box_a, box_b):
-    A = box_a.size(0)
-    B = box_b.size(0)
-    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
-                       box_b[:, 2:].unsqueeze(0).expand(A, B, 2))
-    min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(A, B, 2),
-                       box_b[:, :2].unsqueeze(0).expand(A, B, 2))
-    inter = torch.clamp((max_xy - min_xy), min=0)
-    return inter[:, :, 0] * inter[:, :, 1]
-
-
-def cul_iou(box_a, box_b):
-    inter = intersect(box_a, box_b)
-    area_a = ((box_a[:, 2] - box_a[:, 0]) *
-              (box_a[:, 3] - box_a[:, 1])).unsqueeze(1).expand_as(inter)  # [A,B]
-    area_b = ((box_b[:, 2] - box_b[:, 0]) *
-              (box_b[:, 3] - box_b[:, 1])).unsqueeze(0).expand_as(inter)  # [A,B]
-    union = area_a + area_b - inter
-    return inter / union  # [A,B]
-
-
-def point_form(boxes):
-    return torch.cat((boxes[:, :2] - boxes[:, 2:]/2,     # xmin, ymin
-                     boxes[:, :2] + boxes[:, 2:]/2), 1)  # xmax, ymax
-
-
-def encode(matched, priors, variances):
-    # dist b/t match center and prior's center
-    g_cxcy = (matched[:, :2] + matched[:, 2:]) / 2 - priors[:, :2]
-    # encode variance
-    g_cxcy /= (variances[0] * priors[:, 2:])
-    # match wh / prior wh
-    g_wh = (matched[:, 2:] - matched[:, :2]) / priors[:, 2:]
-    g_wh = torch.log(g_wh) / variances[1]
-    # return target for smooth_l1_loss
-    return torch.cat([g_cxcy, g_wh], 1)  # [num_priors,4]
 
 
 class SSDLoss:
@@ -55,7 +19,7 @@ class SSDLoss:
                  variances=None,
                  neg_pos_ratio=3):
         if variances is None:
-            variances = [1, 1]
+            variances = [0.1, 0.2]
         self.num_classes = num_classes
         self.overlap_thresh = overlap_thresh
         self.variances = variances
@@ -77,7 +41,7 @@ class SSDLoss:
         conf_t = torch.LongTensor(bs, num_anchor)
         for img_idx in range(bs):
             num_gt = gt_bb[img_idx].shape[0]
-            iou_matrix = cul_iou(gt_bb[img_idx].data, point_form(anchor.data))  # shape: (num_gt, num_anchor)
+            iou_matrix = cal_iou_matrix(gt_bb[img_idx].data, point_form(anchor.data))  # shape: (num_gt, num_anchor)
 
             best_anchor_iou, best_anchor_idx = iou_matrix.max(1)  # shape: (num_gt)
             best_gt_bb_iou, best_gt_bb_idx = iou_matrix.max(0)  # shape: (num_anchor)
@@ -92,9 +56,10 @@ class SSDLoss:
             # anchor_label[best_anchor_idx] = 1
 
             # make the label for net output
-            xy = ((anchor_gt[:, 2:] + anchor_gt[:, :2]) / 2 - anchor[:, :2]) / (self.variances[0] * anchor[:, 2:])
-            wh = torch.log((anchor_gt[:, 2:] - anchor_gt[:, :2]) / anchor[:, 2:]) / self.variances[1]
-            loc_t[img_idx] = torch.cat([xy, wh], 1)  # [num_anchor, 2 + 2]
+            loc_t[img_idx] = encode(anchor_gt, anchor, self.variances)
+            # xy = ((anchor_gt[:, 2:] + anchor_gt[:, :2]) / 2 - anchor[:, :2]) / (self.variances[0] * anchor[:, 2:])
+            # wh = torch.log((anchor_gt[:, 2:] - anchor_gt[:, :2]) / anchor[:, 2:]) / self.variances[1]
+            # loc_t[img_idx] = torch.cat([xy, wh], 1)  # [num_anchor, 2 + 2]
 
             conf_t[img_idx] = anchor_label
 
@@ -104,25 +69,24 @@ class SSDLoss:
         loc_t = Variable(loc_t, requires_grad=False)
         conf_t = Variable(conf_t, requires_grad=False)
 
-        # loc_t = loc_t.cuda()  # (bs, num_anchor, 4)
-        # conf_t = conf_t.cuda()  # (bs, num_anchor)
-        # bb loss
-
         pos = conf_t > 0  # (bs, num_anchor)
         loc_t = loc_t[pos]
+        from IPython import embed
+        embed()
         loc_p = pred_bb[pos]
         loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
 
         # cls loss
         pred_label = pred_label.view(-1, self.num_classes)
 
-        def log_sum_exp(x):
-            x_max = x.data.max()
-            return torch.log(torch.sum(torch.exp(x - x_max), 1, keepdim=True)) + x_max
+        # def log_sum_exp(x):
+        #     x_max = x.data.max()
+        #     return torch.log(torch.sum(torch.exp(x - x_max), 1, keepdim=True)) + x_max
 
         # loss_all_bb = torch.log(torch.sum(torch.exp(pred_label), 1, keepdim=True)) \
         #               - pred_label.gather(1, conf_t.view(-1, 1))  # Shape: [bs * num_anchor, 1]
-        loss_all_bb = log_sum_exp(pred_label) - pred_label.gather(1, conf_t.view(-1, 1))
+        # loss_all_bb = log_sum_exp(pred_label) - pred_label.gather(1, conf_t.view(-1, 1))
+        loss_all_bb = F.cross_entropy(pred_label, conf_t.view(-1), reduction='none')
 
         loss_all_bb = loss_all_bb.view(bs, -1)  # Shape: [num, num_priors]
         loss_all_bb[pos] = 0

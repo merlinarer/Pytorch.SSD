@@ -88,7 +88,8 @@ class MyVOCDataset(Dataset):
                 path = os.path.join(self.root, 'JPEGImages', line + '.jpg')
                 assert os.path.isfile(path), path
                 self.list_file.append(path)
-        # self.list_file = self.list_file[:100]
+        # if type == 'test':
+        #     self.list_file = self.list_file[:10]
         self.class_dict = {k: v for v, k in enumerate(self.CLASSES)}
 
         self.len = len(self.list_file)
@@ -113,15 +114,12 @@ class MyVOCDataset(Dataset):
             print(img_path)
             print('Corrupted image for %d' % index)
             return self[index + 1]
-
         box, label = self.labelpaser(os.path.basename(img_path).rstrip('.jpg'), h, w)
-
         if self.transform is not None:
             img, box, label = self.transform(img, box, label)
-
         assert len(box) == len(label)
 
-        return torch.tensor(img).permute(2, 0, 1), box, label, h, w
+        return torch.tensor(img).permute(2, 0, 1), box, label, h, w, os.path.basename(img_path)
 
     def labelpaser(self, img, h, w):
         annotation_file = os.path.join(self.root, "Annotations", "%s.xml" % img)

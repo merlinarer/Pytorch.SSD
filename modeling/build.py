@@ -6,11 +6,12 @@ from .heads import SSDHead
 
 class SSD(nn.Module):
     def __init__(self,
-                 phase='train',
+                 nms=False,
+                 variance=None,
                  num_classes=80):
         super().__init__()
         self.backbone = VGG(depth=16, input_size=300)
-        self.head = SSDHead(num_classes=num_classes, phase=phase)
+        self.head = SSDHead(num_classes=num_classes, nms=nms, variance=variance)
 
     def init_weights(self, pretrained=None):
         self.backbone.init_weights(pretrained=pretrained)

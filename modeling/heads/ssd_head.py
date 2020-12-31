@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from modeling.utils import detection
-from modeling.utils import anchor_generator
+from modeling.utils.nms import Detect
+from modeling.utils import anchor
 
 __all__ = [
     "SSDHead",
@@ -21,12 +21,13 @@ def conv3x3(in_planes, out_planes, padding=1):
 class SSDHead(nn.Module):
     def __init__(self,
                  num_classes=21,
-                 phase='train',
+                 nms=False,
+                 variance=None,
                  anchor_num=(4, 6, 6, 6, 4, 4),
                  in_channels=(512, 1024, 512, 256, 256, 256)):
         super().__init__()
         assert len(anchor_num) == 6
-        self.phase = phase
+        self.nms = nms
         self.num_classes = num_classes
         self.in_channels = in_channels
         reg_convs = []
@@ -39,11 +40,16 @@ class SSDHead(nn.Module):
         self.reg_convs = nn.ModuleList(reg_convs)
         self.cls_convs = nn.ModuleList(cls_convs)
 
-        if self.phase == 'test':
-            self.softmax = nn.Softmax(dim=-1)
-            self.detect = detection.Detect()
+        self.softmax = nn.Softmax(dim=-1)
+        self.detect = Detect(num_classes=21,
+                             topk=200,
+                             conf_thresh=0.01,
+                             nms_thresh=0.45,
+                             variance=variance)
 
-        self.anchor = Variable(torch.tensor(anchor_generator.AnchorGenerator()(), dtype=torch.float), requires_grad=False)
+        prior = anchor.AnchorGenerator()()
+        self.anchor = Variable(torch.tensor(prior, dtype=torch.float),
+                               requires_grad=False)
 
     def init_weights(self, pretrained=None):
         for m in self.modules():
@@ -64,13 +70,12 @@ class SSDHead(nn.Module):
             cls_scores.append(cls_conv(feat).permute(0, 2, 3, 1).contiguous())
             bbox_preds.append(reg_conv(feat).permute(0, 2, 3, 1).contiguous())
 
-        if self.phase == "test":
-            output = self.detect.apply(21, 0, 200, 0.01, 0.45,
-                                       torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
-                                       self.softmax(
-                                           torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)),
-                                       self.anchor.cuda()
-                                       )
+        if self.nms:
+            output = self.detect(torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
+                                 self.softmax(torch.cat([o.view(o.size(0), -1, self.num_classes)
+                                                         for o in cls_scores], 1)),
+                                 self.anchor.cuda()
+                                 )
         else:
             output = (
                 torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),

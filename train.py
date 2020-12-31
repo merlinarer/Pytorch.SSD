@@ -19,11 +19,11 @@ import numpy as np
 from config import cfg
 from data.dataloader import MyVOCDataset
 from utils.logger import setup_logger
-from utils.checkpoint import save_checkpoint
+from utils.checkpoint import save_checkpoint, load_model, resume_from
 
 from modeling.build import SSD
 from modeling.losses import ssdloss
-from data import SSDAugmentation
+from data import SSDAugmentation, BaseTransform
 from torch.optim.lr_scheduler import ExponentialLR
 import torch.optim as optim
 
@@ -37,6 +37,23 @@ def detection_collate(batch):
         boxs.append(torch.FloatTensor(sample[1]))
         labels.append(torch.FloatTensor(sample[2]))
     return torch.stack(imgs, 0), boxs, labels
+
+
+def val_collate(batch):
+    imgs = []
+    boxs = []
+    labels = []
+    imgname = []
+    h = []
+    w = []
+    for sample in batch:
+        imgs.append(sample[0])
+        boxs.append(torch.FloatTensor(sample[1]))
+        labels.append(torch.FloatTensor(sample[2]))
+        h.append(sample[3])
+        w.append(sample[4])
+        imgname.append(sample[5])
+    return torch.stack(imgs, 0), boxs, labels, h, w, imgname
 
 
 def train(cfg):
@@ -54,13 +71,21 @@ def train(cfg):
                               num_workers=8,
                               collate_fn=detection_collate,
                               pin_memory=False)
+    val_dataset = MyVOCDataset(root=cfg.DATA.VALROOT + 'VOC2007',
+                               transform=BaseTransform(),
+                               type='test')
+    val_loader = DataLoader(val_dataset,
+                            batch_size=cfg.TEST.IMS_PER_BATCH,
+                            shuffle=True,
+                            num_workers=8,
+                            collate_fn=val_collate,
+                            pin_memory=False)
     num_classes = cfg.MODEL.HEADS.NUM_CLASSES
 
     # prepare model
-    model = SSD(num_classes=num_classes)
-    model.init_weights(pretrained=cfg.MODEL.BACKBONE.PRETRAIN_PATH)
+    variance = [0.1, 0.2]
+    model = SSD(num_classes=num_classes, variance=variance)
     model = model.cuda()
-    model = nn.DataParallel(model)
 
     optimizer = optim.SGD(model.parameters(),
                           lr=cfg.SOLVER.BASE_LR,
@@ -68,12 +93,21 @@ def train(cfg):
                           weight_decay=cfg.SOLVER.WEIGHT_DECAY)
     scheduler = ExponentialLR(optimizer, gamma=cfg.SOLVER.GAMMA)
 
-    loss_fn = ssdloss.SSDLoss()
+    if cfg.RESUME:
+        model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM, False)
+        model.load_state_dict(model_state_dict)
+        optimizer.load_state_dict(optimizer_state_dict)
+        start_epoch = epoch
+    else:
+        model.init_weights(pretrained=cfg.MODEL.BACKBONE.PRETRAIN_PATH)
+        start_epoch = 0
+
+    model = nn.DataParallel(model)
+    loss_fn = ssdloss.SSDLoss(variances=variance)
 
     # Train and val
     since = time.time()
     sum_it = 0
-    start_epoch = 0
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
         model.train(True)
         logger.info("Epoch {}/{}".format(epoch, cfg.SOLVER.MAX_EPOCHS - 1))
@@ -113,8 +147,8 @@ def train(cfg):
 
             if it % 10 == 0:
                 logger.info(
-                    'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
-                        epoch, it, running_loss / it,
+                    'epoch {}, iter {}, sum_it: {}, loss: {:.3f}, lr: {:.5f}'.format(
+                        epoch, it, sum_it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
 
         epoch_loss = running_loss / it
@@ -128,6 +162,22 @@ def train(cfg):
                           'optimizer': optimizer.state_dict()
                           }
             save_checkpoint(checkpoint, epoch, cfg)
+
+        time_elapsed = time.time() - since
+        logger.info('Training complete in {:.0f}m {:.0f}s\n'.format(
+            time_elapsed // 60, time_elapsed % 60))
+
+        # evaluate
+        if epoch % cfg.SOLVER.EVAL_PERIOD == 0:
+            logger.info('evaluate...')
+            model.train(False)
+            model.module.head.nms = True
+
+            from eval import VOCMap
+            ap = VOCMap(cfg.DATA.VALROOT,
+                        21, logger=logger, num_images=len(val_dataset))
+            ap(model, val_loader)
+            model.module.head.nms = False
 
         time_elapsed = time.time() - since
         logger.info('Training complete in {:.0f}m {:.0f}s\n'.format(
@@ -175,4 +225,8 @@ def main():
 
 
 if __name__ == '__main__':
+    # if torch.cuda.is_available():
+    #     torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    # else:
+    #     torch.set_default_tensor_type('torch.FloatTensor')
     main()

@@ -13,6 +13,7 @@ import torch.utils.data as data
 
 from modeling.build import SSD
 from data.dataloader import MyVOCDataset
+from utils.checkpoint import load_model
 
 import sys
 import os
@@ -43,7 +44,7 @@ labelmap = (  # always index 0
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='output/baseline/epoch_395.pth', type=str,
+                    default='pretrained/SSD_bs32_loss3_epoch_395.pth', type=str,
                     help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
@@ -159,7 +160,7 @@ def write_voc_results_file(all_boxes, dataset):
                 dets = all_boxes[cls_ind+1][im_ind]
                 if dets == []:
                     continue
-                print(dets)
+                # print(dets)
                 # the VOCdevkit expects 1-based indices
                 for k in range(dets.shape[0]):
                     f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
@@ -433,8 +434,9 @@ def evaluate_detections(box_list, output_dir, dataset):
 if __name__ == '__main__':
     # load net
     num_classes = 21              # +1 for background
-    net = SSD(num_classes=num_classes, phase='test')         # initialize SSD
-    net.load_state_dict(torch.load(args.trained_model)['model'])
+    net = SSD(num_classes=num_classes, nms=True)         # initialize SSD
+    state_dict = load_model(args.trained_model)
+    net.load_state_dict(state_dict)
     net.eval()
     print('Finished loading model!')
     # load data
