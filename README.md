@@ -23,5 +23,7 @@ A strong implement of SSD ~
 
 ## References
 > Wei Liu, et al. "SSD: Single Shot MultiBox Detector." ECCV2016.
+
 > ssd.pytorch (https://github.com/amdegroot/ssd.pytorch)
+
 > mmdetection (https://github.com/open-mmlab/mmdetection)
