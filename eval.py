@@ -117,7 +117,7 @@ class VOCMap:
 
     def get_voc_results_file_template(self, image_set, cls):
         # VOCdevkit/VOC2007/results/det_test_aeroplane.txt
-        filename = 'det_' + image_set + '_%s.txt' % (cls)
+        filename = 'bs16_SGD_all_trans_mymodel_changed_warmup' + image_set + '_%s.txt' % (cls)
         filedir = os.path.join(self.devkit_path, 'results')
         if not os.path.exists(filedir):
             os.makedirs(filedir)
@@ -174,7 +174,6 @@ class VOCMap:
         print('--------------------------------------------------------------')
         if self.logger is not None:
             self.logger.info('eval map:{:.4f}\n'.format(np.mean(aps)))
-
 
     def voc_ap(self, rec, prec, use_07_metric=True):
         """ ap = voc_ap(rec, prec, [use_07_metric])
@@ -382,7 +381,7 @@ class VOCMap:
                 i += 1
                 detect_time = _t['eval'].toc(average=False)
                 print('eval: {:d}/{:d} {:.3f}s'.format(i + 1,
-                                                            self.num_images, detect_time))
+                                                       self.num_images, detect_time))
 
         # with open(det_file, 'wb') as f:
         #     pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)

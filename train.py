@@ -20,40 +20,13 @@ from config import cfg
 from data.dataloader import MyVOCDataset
 from utils.logger import setup_logger
 from utils.checkpoint import save_checkpoint, load_model, resume_from
+from utils.lr import adjust_learning_rate
+from utils.collate import train_collate, val_collate
 
 from modeling.build import SSD
 from modeling.losses import ssdloss
 from data import SSDAugmentation, BaseTransform
-from torch.optim.lr_scheduler import ExponentialLR
 import torch.optim as optim
-
-
-def detection_collate(batch):
-    imgs = []
-    boxs = []
-    labels = []
-    for sample in batch:
-        imgs.append(sample[0])
-        boxs.append(torch.FloatTensor(sample[1]))
-        labels.append(torch.FloatTensor(sample[2]))
-    return torch.stack(imgs, 0), boxs, labels
-
-
-def val_collate(batch):
-    imgs = []
-    boxs = []
-    labels = []
-    imgname = []
-    h = []
-    w = []
-    for sample in batch:
-        imgs.append(sample[0])
-        boxs.append(torch.FloatTensor(sample[1]))
-        labels.append(torch.FloatTensor(sample[2]))
-        h.append(sample[3])
-        w.append(sample[4])
-        imgname.append(sample[5])
-    return torch.stack(imgs, 0), boxs, labels, h, w, imgname
 
 
 def train(cfg):
@@ -69,7 +42,7 @@ def train(cfg):
                               batch_size=cfg.SOLVER.BATCH_SIZE,
                               shuffle=True,
                               num_workers=8,
-                              collate_fn=detection_collate,
+                              collate_fn=train_collate,
                               pin_memory=False)
     val_dataset = MyVOCDataset(root=cfg.DATA.VALROOT + 'VOC2007',
                                transform=BaseTransform(),
@@ -85,29 +58,37 @@ def train(cfg):
     # prepare model
     variance = [0.1, 0.2]
     model = SSD(num_classes=num_classes, variance=variance)
-    model = model.cuda()
 
-    optimizer = optim.SGD(model.parameters(),
-                          lr=cfg.SOLVER.BASE_LR,
-                          momentum=cfg.SOLVER.WEIGHT_DECAY,
-                          weight_decay=cfg.SOLVER.WEIGHT_DECAY)
-    scheduler = ExponentialLR(optimizer, gamma=cfg.SOLVER.GAMMA)
+    if cfg.SOLVER.OPTIMIZER_NAME == 'SGD':
+        optimizer = optim.SGD(model.parameters(),
+                              lr=cfg.SOLVER.BASE_LR,
+                              momentum=cfg.SOLVER.MOMENTUM,
+                              weight_decay=cfg.SOLVER.WEIGHT_DECAY)
+    elif cfg.SOLVER.OPTIMIZER_NAME == 'Adam':
+        optimizer = optim.Adam(model.parameters(),
+                               lr=cfg.SOLVER.BASE_LR,
+                               weight_decay=cfg.SOLVER.WEIGHT_DECAY)
+    else:
+        raise Exception('Only Adam and SGD is supported !')
 
     if cfg.RESUME:
-        model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM, False)
+        model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM)
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
         start_epoch = epoch
+        sum_it = start_epoch * cfg.SOLVER.BATCH_SIZE
     else:
         model.init_weights(pretrained=cfg.MODEL.BACKBONE.PRETRAIN_PATH)
         start_epoch = 0
+        sum_it = 0
 
+    model = model.cuda()
     model = nn.DataParallel(model)
+
     loss_fn = ssdloss.SSDLoss(variances=variance)
 
     # Train and val
     since = time.time()
-    sum_it = 0
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
         model.train(True)
         logger.info("Epoch {}/{}".format(epoch, cfg.SOLVER.MAX_EPOCHS - 1))
@@ -137,9 +118,7 @@ def train(cfg):
             loss = loss_fn(pred_bb, pred_label, gt_bb, gt_label, anchor)
             loss.backward()
             optimizer.step()
-            if sum_it in cfg.SOLVER.STEPS:
-                scheduler.step()
-                logger.info('sum_iter {}'.format(sum_it))
+            adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, sum_it)
 
             # statistics
             with torch.no_grad():
@@ -155,7 +134,7 @@ def train(cfg):
         logger.info('epoch {} loss: {:.4f}'.format(epoch, epoch_loss))
 
         # save checkpoint
-        if epoch % cfg.SOLVER.CHECKPOINT_PERIOD == 0:
+        if (epoch + 1) % cfg.SOLVER.CHECKPOINT_PERIOD == 0:
             checkpoint = {'epoch': epoch + 1,
                           'model': model.module.state_dict() if (len(
                               cfg.MODEL.DEVICE_ID) - 2) > 1 else model.state_dict(),
@@ -168,7 +147,7 @@ def train(cfg):
             time_elapsed // 60, time_elapsed % 60))
 
         # evaluate
-        if epoch % cfg.SOLVER.EVAL_PERIOD == 0:
+        if (epoch + 1) % cfg.SOLVER.EVAL_PERIOD == 0:
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
@@ -178,12 +157,6 @@ def train(cfg):
                         21, logger=logger, num_images=len(val_dataset))
             ap(model, val_loader)
             model.module.head.nms = False
-
-        time_elapsed = time.time() - since
-        logger.info('Training complete in {:.0f}m {:.0f}s\n'.format(
-            time_elapsed // 60, time_elapsed % 60))
-
-    return model
 
 
 def main():
@@ -225,8 +198,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # if torch.cuda.is_available():
-    #     torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    # else:
-    #     torch.set_default_tensor_type('torch.FloatTensor')
     main()

@@ -37,7 +37,6 @@ class SSDHead(nn.Module):
             inplanes = self.in_channels[i]
             reg_convs.append(conv3x3(inplanes, ou * 4, padding=1))
             cls_convs.append(conv3x3(inplanes, ou * self.num_classes, padding=1))
-
         self.reg_convs = nn.ModuleList(reg_convs)
         self.cls_convs = nn.ModuleList(cls_convs)
 
@@ -50,16 +49,11 @@ class SSDHead(nn.Module):
         self.anchor = Variable(torch.tensor(prior, dtype=torch.float),
                                requires_grad=False)
 
-    def init_weights(self, pretrained=None):
+    def init_weights(self):
         for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight.item(), 1)
-                nn.init.constant_(m.bias.item(), 0)
+            if isinstance(m, nn.Conv2d):
+                nn.init.xavier_uniform_(m.weight.data)
+                m.bias.data.zero_()
 
     def forward(self, x):
         cls_scores = []

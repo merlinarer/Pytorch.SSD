@@ -2,6 +2,9 @@
 """
 @author:  merlin
 @contact: merlinarer@gmail.com
+Adapted from:
+https://github.com/michuanhaohao/reid-strong-baseline
+https://github.com/JDAI-CV/fast-reid
 """
 
 import logging
@@ -15,9 +18,10 @@ from utils.file_io import PathManager
 
 BASE_KEY = "_BASE_"
 
+
 class CfgNode(_CfgNode):
     """
-    Our own extended version of :class:`yacs.config.CfgNode`.
+    A extended version of :class:`yacs.config.CfgNode`.
     It contains the following extra features:
     1. The :meth:`merge_from_file` method supports the "_BASE_" key,
        which allows the new CfgNode to inherit all the attributes from the
@@ -151,7 +155,7 @@ def get_cfg() -> CfgNode:
     """
     Get a copy of the default config.
     Returns:
-        a fastreid CfgNode instance.
+        a CfgNode instance.
     """
     from .defaults import _C
 

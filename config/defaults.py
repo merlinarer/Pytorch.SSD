@@ -79,6 +79,9 @@ _C.SOLVER.STEPS = [30, 55]
 _C.SOLVER.CHECKPOINT_PERIOD = 20
 _C.SOLVER.BATCH_SIZE = 64
 
+_C.SOLVER.WARMUP = False
+_C.SOLVER.WARMUP_ITERS = 0
+
 
 # -----------------------------------------------------------------------------
 # TEST

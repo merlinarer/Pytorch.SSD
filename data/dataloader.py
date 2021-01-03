@@ -109,6 +109,7 @@ class MyVOCDataset(Dataset):
 
         try:
             img = cv2.imread(img_path)
+            # img = img[:, :, (2, 1, 0)]  # to RGB
             h, w, c = img.shape
         except:
             print(img_path)
@@ -119,7 +120,7 @@ class MyVOCDataset(Dataset):
             img, box, label = self.transform(img, box, label)
         assert len(box) == len(label)
 
-        return torch.tensor(img).permute(2, 0, 1), box, label, h, w, os.path.basename(img_path)
+        return torch.from_numpy(img).permute(2, 0, 1), box, label, h, w, os.path.basename(img_path)
 
     def labelpaser(self, img, h, w):
         annotation_file = os.path.join(self.root, "Annotations", "%s.xml" % img)
@@ -127,6 +128,9 @@ class MyVOCDataset(Dataset):
         boxes = []
         labels = []
         for obj in objects:
+            difficult = int(obj.find('difficult').text) == 1
+            if difficult:
+                continue
             class_name = obj.find('name').text.lower().strip()
             bbox = obj.find('bndbox')
             x1 = float(bbox.find('xmin').text) - 1

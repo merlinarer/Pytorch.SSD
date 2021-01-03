@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 __all__ = [
     "VGG",
 ]
@@ -90,31 +89,28 @@ class VGG(nn.Module):
         self.extra_inplanes = 1024
         self.extra = self.make_extra_layers(self.extra_inplanes,
                                             self.extra_setting[self.input_size])
-        self.l2_norm = L2Norm(
-            self.features[out_feature_indices[0] - 1].out_channels,
-            scale=20.)
+        self.l2_norm = L2Norm()
 
     def init_weights(self, pretrained=None):
-        checkpoint = torch.load(pretrained)
-        if 'state_dict' in checkpoint:
-            state_dict = checkpoint['state_dict']
+        if pretrained is not None:
+            checkpoint = torch.load(pretrained)
+            if 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            if list(state_dict.keys())[0].startswith('module.'):
+                state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
+            self.load_state_dict(state_dict, strict=False)
         else:
-            state_dict = checkpoint
-        if list(state_dict.keys())[0].startswith('module.'):
-            state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
-        state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items()}
-        self.load_state_dict(state_dict, strict=False)
+            for m in self.features.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.xavier_uniform_(m.weight.data)
+                    m.bias.data.zero_()
 
         for m in self.extra.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight.item(), 1)
-                nn.init.constant_(m.bias.item(), 0)
-        self.constant_init(self.l2_norm, self.l2_norm.scale)
+            if isinstance(m, nn.Conv2d):
+                nn.init.xavier_uniform_(m.weight.data)
+                m.bias.data.zero_()
 
     def forward(self, x):
         outs = []
@@ -127,16 +123,8 @@ class VGG(nn.Module):
             if i % 2 == 1:
                 outs.append(x)
         outs[0] = self.l2_norm(outs[0])
-        if len(outs) == 1:
-            return outs[0]
-        else:
-            return tuple(outs)
 
-    def constant_init(self, module, val, bias=0):
-        if hasattr(module, 'weight') and module.weight is not None:
-            nn.init.constant_(module.weight, val)
-        if hasattr(module, 'bias') and module.bias is not None:
-            nn.init.constant_(module.bias, bias)
+        return tuple(outs)
 
     def make_extra_layers(self, inplanes, settings):
         num_layers = 0
@@ -167,21 +155,24 @@ class VGG(nn.Module):
 
         return nn.Sequential(*layers)
 
-class L2Norm(nn.Module):
 
-    def __init__(self, n_dims, scale=20., eps=1e-10):
+class L2Norm(nn.Module):
+    def __init__(self, n_channels=512, scale=20):
         super(L2Norm, self).__init__()
-        self.n_dims = n_dims
-        self.weight = nn.Parameter(torch.Tensor(self.n_dims))
-        self.eps = eps
-        self.scale = scale
+        self.n_channels = n_channels
+        self.gamma = scale
+        self.eps = 1e-10
+        self.weight = nn.Parameter(torch.Tensor(self.n_channels))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.constant_(self.weight, self.gamma)
 
     def forward(self, x):
-        # normalization layer convert to FP32 in FP16 training
-        x_float = x.float()
-        norm = x_float.pow(2).sum(1, keepdim=True).sqrt() + self.eps
-        return (self.weight[None, :, None, None].float().expand_as(x_float) *
-                x_float / norm).type_as(x)
+        norm = x.pow(2).sum(dim=1, keepdim=True).sqrt() + self.eps
+        x = torch.div(x, norm)
+        out = self.weight.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(x) * x
+        return out
 
 
 if __name__ == '__main__':

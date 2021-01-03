@@ -3,7 +3,7 @@ MODEL:
     PRETRAIN_PATH: 'pretrained/vgg16_caffe-292e1171.pth'
   HEADS:
     NUM_CLASSES: 21
-  DEVICE_ID: '("0, 1")'
+  DEVICE_ID: '("1")'
 
 INPUT:
   SIZE_TRAIN: [300, 300]
@@ -16,18 +16,22 @@ DATA:
 
 SOLVER:
   BATCH_SIZE: 16
-  CHECKPOINT_PERIOD: 5
+  CHECKPOINT_PERIOD: 20
   EVAL_PERIOD: 20
-  OPTIMIZER_NAME: 'Adam'
+  OPTIMIZER_NAME: 'SGD'
   MAX_EPOCHS: 400
-  BASE_LR: 0.001
+  BASE_LR: 0.002
   WEIGHT_DECAY: 0.0005
-  STEPS: [40000, 50000]
+  MOMENTUM: 0.9
+  STEPS: [50000, 60000]
   GAMMA: 0.1
 
-OUTPUT_DIR: "output/with_val"
+  WARMUP: True
+  WARMUP_ITERS: 1500
+
+OUTPUT_DIR: "output/bs16_SGD_all_trans_mymodel_changed_warmup"
 RESUME: False
-LOAD_FROM: "output/myanchor/epoch_395.pth"
+LOAD_FROM: "output/bs16_SGD_all_trans_model/epoch_80.pth"
 TEST:
   IMS_PER_BATCH: 64
 

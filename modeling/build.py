@@ -9,7 +9,7 @@ class SSD(nn.Module):
     def __init__(self,
                  nms=False,
                  variance=None,
-                 num_classes=80):
+                 num_classes=21):
         super().__init__()
         self.prior = anchor.AnchorGenerator()()
         self.backbone = VGG(depth=16, input_size=300)
@@ -17,7 +17,7 @@ class SSD(nn.Module):
 
     def init_weights(self, pretrained=None):
         self.backbone.init_weights(pretrained=pretrained)
-        self.head.init_weights(pretrained=None)
+        self.head.init_weights()
 
     def forward(self, x):
         x = self.backbone(x)
@@ -27,11 +27,11 @@ class SSD(nn.Module):
 
 if __name__ == '__main__':
     model = SSD()
-    # print(model)
+    print(model)
     model.init_weights(pretrained='C:/Users/Merlin/Downloads/vgg16_caffe-292e1171.pth')
-    input = torch.randn((10, 3, 300, 300))
-    for i in range(6):
-        print('cls')
-        print(model(input)[0][i].shape)
-        print('reg')
-        print(model(input)[1][i].shape)
+    # input = torch.randn((10, 3, 300, 300))
+    # for i in range(6):
+    #     print('cls')
+    #     print(model(input)[0][i].shape)
+    #     print('reg')
+    #     print(model(input)[1][i].shape)
