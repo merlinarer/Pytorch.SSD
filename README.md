@@ -3,9 +3,13 @@ A strong implement of SSD ~
 
 ## Pytorch.SSD v1 Release （2020.1.3）
 1、The nms is update to torchvision cuda nms, which is much fasater when eval and test
+
 2、Model init is update to xavier_uniform_, which makes the model converge more faster
+
 3、Warmup lr is added
-4、Good performance:
+
+4、Good performance
+
 |method|train data|test data|mAP|aero|bike|bird|boat|bottle|bus|car|cat|chair|cow|table|dog|horse|mbike|person|plant|sheep|sofa|train|tv|
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 |SSD (Liu et al.)|VOC 2007 trainval|VOC 2007 test|0.680|0.734|0.775|0.641|0.590|0.389|0.752|0.808|0.785|0.460|0.678|0.692|0.766|0.821|0.770|0.725|0.412|0.642|0.691|0.780|0.685|
@@ -14,4 +18,5 @@ A strong implement of SSD ~
 
 ## Pytorch.SSD v0 Release （2020.12.31）
 1、The model can be trained with eval
+
 2、The cfg paras is defined in yaml file, which is then merged with args.opts
