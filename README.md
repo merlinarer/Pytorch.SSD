@@ -21,7 +21,8 @@ A strong implement of SSD ~
 
 2、The cfg paras is defined in yaml file, which is then merged with args.opts
 
-## Ref
+## References
+> Wei Liu, et al. "SSD: Single Shot MultiBox Detector." ECCV2016.
 ```
 https://github.com/amdegroot/ssd.pytorch
 https://github.com/open-mmlab/mmdetection
