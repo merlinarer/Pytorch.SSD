@@ -20,3 +20,9 @@ A strong implement of SSD ~
 1、The model can be trained with eval
 
 2、The cfg paras is defined in yaml file, which is then merged with args.opts
+
+## Ref
+```
+https://github.com/amdegroot/ssd.pytorch
+https://github.com/open-mmlab/mmdetection
+```
