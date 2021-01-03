@@ -26,4 +26,4 @@ A strong implement of SSD ~
 
 > [ssd.pytorch](https://github.com/amdegroot/ssd.pytorch)
 
-> [mmdetection] (https://github.com/open-mmlab/mmdetection)
+> [mmdetection](https://github.com/open-mmlab/mmdetection)
