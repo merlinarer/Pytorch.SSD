@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from modeling.utils.nms import Detect
-
+from .build import HEAD_REGISTRY
+from modeling.utils import anchor
 
 __all__ = [
     "SSDHead",
@@ -18,19 +19,21 @@ def conv3x3(in_planes, out_planes, padding=1):
         padding=padding)
 
 
+@HEAD_REGISTRY.register()
 class SSDHead(nn.Module):
     def __init__(self,
-                 num_classes=21,
+                 cfg,
                  nms=False,
-                 variance=None,
-                 prior=None,
                  anchor_num=(4, 6, 6, 6, 4, 4),
                  in_channels=(512, 1024, 512, 256, 256, 256)):
         super().__init__()
         assert len(anchor_num) == 6
         self.nms = nms
-        self.num_classes = num_classes
+        self.num_classes = cfg.MODEL.HEADS.NUM_CLASSES
+        self.variance = cfg.VARIRANCE
         self.in_channels = in_channels
+        prior = torch.tensor(anchor.AnchorGenerator()(),
+                             dtype=torch.float)
         reg_convs = []
         cls_convs = []
         for i, ou in enumerate(anchor_num):
@@ -41,13 +44,13 @@ class SSDHead(nn.Module):
         self.cls_convs = nn.ModuleList(cls_convs)
 
         self.softmax = nn.Softmax(dim=-1)
-        self.detect = Detect(num_classes=21,
+        self.detect = Detect(num_classes=self.num_classes,
                              topk=200,
                              conf_thresh=0.01,
                              nms_thresh=0.45,
-                             variance=variance)
-        self.anchor = Variable(torch.tensor(prior, dtype=torch.float),
-                               requires_grad=False)
+                             prior=prior,
+                             variance=self.variance)
+        self.init_weights()
 
     def init_weights(self):
         for m in self.modules():
@@ -66,14 +69,12 @@ class SSDHead(nn.Module):
         if self.nms:
             output = self.detect(torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
                                  self.softmax(torch.cat([o.view(o.size(0), -1, self.num_classes)
-                                                         for o in cls_scores], 1)),
-                                 self.anchor.cuda()
+                                                         for o in cls_scores], 1))
                                  )
         else:
             output = (
                 torch.cat([o.view(o.size(0), -1, 4) for o in bbox_preds], 1),
-                torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1),
-                self.anchor.cuda()
+                torch.cat([o.view(o.size(0), -1, self.num_classes) for o in cls_scores], 1)
             )
 
         # from IPython import embed

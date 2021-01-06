@@ -5,6 +5,7 @@ import numpy as np
 from torch.autograd import Variable
 from modeling.utils.coder import encode, decode
 from modeling.utils.iou import intersect, cal_iou_matrix, point_form
+from .build import LOSS_REGISTRY
 
 
 __all__ = [
@@ -12,20 +13,19 @@ __all__ = [
 ]
 
 
+@LOSS_REGISTRY.register()
 class SSDLoss:
     def __init__(self,
-                 num_classes=21,
+                 cfg,
                  overlap_thresh=0.5,
-                 variances=None,
                  neg_pos_ratio=3):
-        if variances is None:
-            variances = [0.1, 0.2]
-        self.num_classes = num_classes
+        variances = cfg.VARIRANCE
+        self.num_classes = cfg.MODEL.HEADS.NUM_CLASSES
         self.overlap_thresh = overlap_thresh
         self.variances = variances
         self.neg_pos_ratio = neg_pos_ratio
 
-    def __call__(self, pred_bb, pred_label, gt_bb, gt_label, anchor):
+    def __call__(self, outs, gt, anchor):
         """SSDLoss
                 Args:
                     pred_bb shape: (batch_size,num_anchor,4)
@@ -33,6 +33,9 @@ class SSDLoss:
                     gt_bb shape: (batch_size,num_anchor,4)
                     gt_label shape: (batch_size,num_anchor)
                 """
+        pred_bb, pred_label = outs
+        gt_bb, gt_label = gt
+        anchor = anchor.cuda()
         assert len(pred_bb) == len(pred_label) == len(gt_bb) == len(gt_label)
         bs = len(pred_bb)
         num_anchor = anchor.shape[0]

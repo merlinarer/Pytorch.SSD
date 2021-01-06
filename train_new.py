@@ -29,66 +29,30 @@ from data import SSDAugmentation, BaseTransform
 import torch.optim as optim
 
 from modeling.utils import anchor
+from data import build_dataloader
+from modeling import build_detector
+from utils.optimizer import build_optimizer
 
 
-def train(cfg):
+def train(cfg,
+          model,
+          train_loader,
+          val_loader,
+          optimizer):
     # logger
     logger = logging.getLogger(name="merlin.baseline.train")
     logger.info("training...")
-
-    # prepare dataset
-    train_dataset = MyVOCDataset(root=cfg.DATA.ROOT,
-                                 transform=SSDAugmentation(),
-                                 type='trainval')
-    train_loader = DataLoader(train_dataset,
-                              batch_size=cfg.SOLVER.BATCH_SIZE,
-                              shuffle=True,
-                              num_workers=8,
-                              collate_fn=train_collate,
-                              pin_memory=False)
-    val_dataset = MyVOCDataset(root=cfg.DATA.VALROOT + 'VOC2007',
-                               transform=BaseTransform(),
-                               type='test')
-    val_loader = DataLoader(val_dataset,
-                            batch_size=cfg.TEST.IMS_PER_BATCH,
-                            shuffle=True,
-                            num_workers=8,
-                            collate_fn=val_collate,
-                            pin_memory=False)
-    num_classes = cfg.MODEL.HEADS.NUM_CLASSES
-
-    # prepare model
-    variance = [0.1, 0.2]
-    model = SSD(num_classes=num_classes, variance=variance)
-
-    if cfg.SOLVER.OPTIMIZER_NAME == 'SGD':
-        optimizer = optim.SGD(model.parameters(),
-                              lr=cfg.SOLVER.BASE_LR,
-                              momentum=cfg.SOLVER.MOMENTUM,
-                              weight_decay=cfg.SOLVER.WEIGHT_DECAY)
-    elif cfg.SOLVER.OPTIMIZER_NAME == 'Adam':
-        optimizer = optim.Adam(model.parameters(),
-                               lr=cfg.SOLVER.BASE_LR,
-                               weight_decay=cfg.SOLVER.WEIGHT_DECAY)
-    else:
-        raise Exception('Only Adam and SGD is supported !')
 
     if cfg.RESUME:
         model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM)
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
         start_epoch = epoch
-        sum_it = start_epoch * cfg.SOLVER.BATCH_SIZE
     else:
-        model.init_weights(pretrained=cfg.MODEL.BACKBONE.PRETRAIN_PATH)
         start_epoch = 0
-        sum_it = 0
 
     model = model.cuda()
     model = nn.DataParallel(model)
-
-    loss_fn = ssdloss.SSDLoss(variances=variance)
-    prior = Variable(torch.tensor(anchor.AnchorGenerator()(), dtype=torch.float), requires_grad=False)
 
     # Train and val
     since = time.time()
@@ -102,7 +66,6 @@ def train(cfg):
         it = 0
         for imgs, gt_bb, gt_label in train_loader:
             it += 1
-            sum_it += 1
             inputs = Variable(imgs.cuda(), requires_grad=False)
             now_batch_size, c, h, w = imgs.shape
             if now_batch_size < cfg.SOLVER.BATCH_SIZE:  # skip the last batch
@@ -112,16 +75,16 @@ def train(cfg):
             optimizer.zero_grad()
 
             # forward
-            pred_bb, pred_label = model(inputs)
+            out = model(inputs)
 
             with torch.no_grad():
                 gt_bb = [Variable(ann.cuda(), requires_grad=False) for ann in gt_bb]
                 gt_label = [Variable(ann.cuda(), requires_grad=False) for ann in gt_label]
 
-            loss = loss_fn(pred_bb, pred_label, gt_bb, gt_label, prior)
+            loss = model.module.loss_fn(out, (gt_bb, gt_label))
             loss.backward()
             optimizer.step()
-            adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, sum_it)
+            adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, epoch + 1)
 
             # statistics
             with torch.no_grad():
@@ -129,8 +92,8 @@ def train(cfg):
 
             if it % 10 == 0:
                 logger.info(
-                    'epoch {}, iter {}, sum_it: {}, loss: {:.3f}, lr: {:.5f}'.format(
-                        epoch, it, sum_it, running_loss / it,
+                    'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
+                        epoch, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
 
         epoch_loss = running_loss / it
@@ -150,14 +113,14 @@ def train(cfg):
             time_elapsed // 60, time_elapsed % 60))
 
         # evaluate
-        if (epoch + 1) % cfg.SOLVER.EVAL_PERIOD == 0:
+        if (epoch) % cfg.SOLVER.EVAL_PERIOD == 0:
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
 
             from eval import VOCMap
             ap = VOCMap(cfg.DATA.VALROOT,
-                        21, logger=logger, num_images=len(val_dataset))
+                        21, logger=logger, num_images=len(val_loader.dataset))
             ap(model, val_loader)
             model.module.head.nms = False
 
@@ -198,9 +161,24 @@ def main():
         os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
     cudnn.benchmark = True
+
     # train(cfg)
-    from modeling import build_detector
-    print(build_detector(cfg))
+    model = build_detector(cfg)
+    # print(model)
+    train_loader, val_loader = build_dataloader(cfg.DATA.NAME,
+                                                cfg.DATA.ROOT,
+                                                cfg.DATA.VALROOT,
+                                                cfg.SOLVER.BATCH_SIZE)
+    optimizer = build_optimizer(cfg.SOLVER.OPTIMIZER_NAME,
+                                model,
+                                cfg.SOLVER.BASE_LR,
+                                cfg.SOLVER.MOMENTUM,
+                                cfg.SOLVER.WEIGHT_DECAY)
+    train(cfg,
+          model,
+          train_loader,
+          val_loader,
+          optimizer)
 
 
 if __name__ == '__main__':

@@ -4,4 +4,5 @@
 @contact: merlinarer@gmail.com
 """
 
-from .ssd_head import SSDHead
+from .ssdhead import SSDHead
+from .build import build_head

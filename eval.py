@@ -10,7 +10,6 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 import torch.utils.data as data
 
-from modeling.build import SSD
 from data.dataloader import MyVOCDataset
 from utils.checkpoint import load_model
 from torch.utils.data import DataLoader
@@ -75,12 +74,11 @@ class VOCMap:
         self.voc_root = root
         self.num_images = num_images
         self.num_class = num_class
-        self.annopath = os.path.join(self.voc_root, 'VOC2007', 'Annotations', '%s.xml')
-        self.imgpath = os.path.join(self.voc_root, 'VOC2007', 'JPEGImages', '%s.jpg')
-        self.imgsetpath = os.path.join(self.voc_root, 'VOC2007', 'ImageSets',
+        self.annopath = os.path.join(self.voc_root, 'Annotations', '%s.xml')
+        self.imgpath = os.path.join(self.voc_root, 'JPEGImages', '%s.jpg')
+        self.imgsetpath = os.path.join(self.voc_root, 'ImageSets',
                                        'Main', '{:s}.txt')
-        self.YEAR = '2007'
-        self.devkit_path = self.voc_root + 'VOC' + self.YEAR
+        self.devkit_path = self.voc_root
         self.dataset_mean = (104, 117, 123)
         self.set_type = 'test'
         self.logger = logger

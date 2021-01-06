@@ -50,6 +50,7 @@ class Detect:
                  conf_thresh=0.01,
                  nms_thresh=0.5,
                  variance=None,
+                 prior=None,
                  topk=200):
         if variance is None:
             variance = [1, 1]
@@ -58,8 +59,9 @@ class Detect:
         self.nms_thresh = nms_thresh
         self.variance = variance
         self.topk = topk
+        self.prior = prior
 
-    def __call__(self, loc_data, conf_data, prior_data):
+    def __call__(self, loc_data, conf_data):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers
@@ -72,12 +74,12 @@ class Detect:
              Shape: [batch,num_classes,5] 0 is score, 1234 is bb cords
         """
         bs = loc_data.size(0)  # batch size
-        num_priors = prior_data.size(0)
+        num_priors = self.prior.size(0)
         output = torch.zeros(bs, self.num_classes, self.topk, 5)
         conf_preds = conf_data.view(bs, num_priors,
                                     self.num_classes).transpose(2, 1)
         for i in range(bs):
-            decoded_boxes = decode(loc_data[i], prior_data, self.variance)
+            decoded_boxes = decode(loc_data[i], self.prior.cuda(), self.variance)
             conf_scores = conf_preds[i].clone()
             # For each class, perform nms, skip bkg=0
             for cl in range(1, self.num_classes):
@@ -95,8 +97,6 @@ class Detect:
                 # apply torchvision build free cuda nms
                 ids = nms(boxes, scores, self.nms_thresh)
                 count = [ids.shape[0], self.topk][ids.shape[0] > self.topk]
-                # from IPython import embed
-                # embed()
                 output[i, cl, :count] = torch.cat((scores[ids[:count]].unsqueeze(1),
                                                    boxes[ids[:count]]), 1)
         return output

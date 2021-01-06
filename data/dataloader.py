@@ -97,7 +97,7 @@ class MyVOCDataset(Dataset):
         table = [["{}".format(self.type), self.len]]
         headers = ['stage', 'len']
         datainfo = tabulate(table, headers, tablefmt="grid")
-        logger = logging.getLogger('merlin.baseline.dataset')
+        logger = logging.getLogger('merlin.baseline')
         logger.info('\n' + datainfo)
 
     def __len__(self):

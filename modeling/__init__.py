@@ -4,4 +4,5 @@
 @contact: merlinarer@gmail.com
 """
 
+from .build import build_detector
 

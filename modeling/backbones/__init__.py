@@ -4,4 +4,5 @@
 @contact: merlinarer@gmail.com
 """
 
-from .vgg import VGG
+from .ssdvgg import SSDVGG
+from .build import build_backbone

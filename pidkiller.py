@@ -22,7 +22,7 @@ if __name__ == '__main__':
         for oo in out_list:
             if oo.find('python') != -1:
                 proc_list = oo.split()
-                pid = proc_list[2].strip()
+                pid = proc_list[4].strip()
                 kill_str = 'sudo kill -9 ' + pid
                 print(kill_str)
                 time.sleep(0.3)

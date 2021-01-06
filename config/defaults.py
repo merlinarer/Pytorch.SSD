@@ -10,18 +10,20 @@ _C = CN()
 # MODEL
 # -----------------------------------------------------------------------------
 _C.MODEL = CN()
+
+_C.MODEL.NAME = ""
 _C.MODEL.DEVICE = "cuda"
 _C.MODEL.DEVICE_ID = "0,1,2,3"
-_C.MODEL.META_ARCHITECTURE = 'Baseline'
 
 # ---------------------------------------------------------------------------- #
 # Backbone options
 # ---------------------------------------------------------------------------- #
 _C.MODEL.BACKBONE = CN()
 
-_C.MODEL.BACKBONE.NAME = "build_resnet_backbone"
-_C.MODEL.BACKBONE.DEPTH = "50x"
+_C.MODEL.BACKBONE.NAME = "SSDVGG"
+_C.MODEL.BACKBONE.DEPTH = 16
 _C.MODEL.BACKBONE.PRETRAIN_PATH = ""
+_C.MODEL.BACKBONE.OUT_INDICES = (22, 34)
 
 # ---------------------------------------------------------------------------- #
 # REID HEADS options
@@ -30,11 +32,14 @@ _C.MODEL.HEADS = CN()
 _C.MODEL.HEADS.NAME = "EmbeddingHead"
 _C.MODEL.HEADS.NUM_CLASSES = 0
 
+
+
+
 # ---------------------------------------------------------------------------- #
 # LOSSES options
 # ---------------------------------------------------------------------------- #
 _C.MODEL.LOSSES = CN()
-_C.MODEL.LOSSES.NAME = ("CrossEntropyLoss",)
+_C.MODEL.LOSSES.NAME = "CrossEntropyLoss"
 
 # Values to be used for image normalization
 _C.MODEL.PIXEL_MEAN = [0.485*255, 0.456*255, 0.406*255]
@@ -47,15 +52,16 @@ _C.MODEL.PIXEL_STD = [0.229*255, 0.224*255, 0.225*255]
 # -----------------------------------------------------------------------------
 _C.INPUT = CN()
 # Size of the image during training
-_C.INPUT.SIZE_TRAIN = [256, 128]
+_C.INPUT.SIZE_TRAIN = 300
 # Size of the image during test
-_C.INPUT.SIZE_TEST = [256, 128]
+_C.INPUT.SIZE_TEST = 300
 
 
 # -----------------------------------------------------------------------------
 # DataLoader
 # -----------------------------------------------------------------------------
 _C.DATA = CN()
+_C.DATA.NAME = 'VOC'
 _C.DATA.ROOT = ''
 _C.DATA.VALROOT = '/home/workspace/merlin/data_dirs/VOCdevkit/VOCdevkit/'
 
@@ -97,3 +103,4 @@ _C.TEST.IMS_PER_BATCH = 64
 _C.OUTPUT_DIR = ""
 _C.LOAD_FROM = ""
 _C.RESUME = False
+_C.VARIRANCE = [1, 1]
