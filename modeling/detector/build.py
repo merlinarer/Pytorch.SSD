@@ -5,19 +5,15 @@ from ..utils.registry import Registry
 
 MODEL_REGISTRY = Registry("MODEL")
 MODEL_REGISTRY.__doc__ = """
-Registry for backbones, which extract feature maps from images
-The registered object must be a callable that accepts two arguments:
-1. A :class:`detectron2.config.CfgNode`
-2. A :class:`detectron2.layers.ShapeSpec`, which contains the input shape specification.
-It must returns an instance of :class:`Backbone`.
+Registry for model
 """
 
 
 def build_model(cfg):
     """
-    Build a backbone from `cfg.MODEL.BACKBONE.NAME`.
+    Build a model from `cfg.MODEL.NAME`.
     Returns:
-        an instance of :class:`Backbone`
+        an instance of :class:`Model`
     """
 
     model_name = cfg.MODEL.NAME

@@ -158,6 +158,6 @@ def get_cfg() -> CfgNode:
     Returns:
         a CfgNode instance.
     """
-    from .defaults import _C
+    from .ssd_defaults import _C
 
     return _C.clone()

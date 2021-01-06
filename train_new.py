@@ -10,25 +10,15 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import time
-from torchvision import transforms
 from torch.backends import cudnn
-from torch.utils.data import DataLoader
 import logging
 import numpy as np
 
-from config import cfg
-from data.dataloader import MyVOCDataset
+import importlib
 from utils.logger import setup_logger
 from utils.checkpoint import save_checkpoint, load_model, resume_from
 from utils.lr import adjust_learning_rate
-from utils.collate import train_collate, val_collate
 
-# from modeling.build import SSD
-from modeling.losses import ssdloss
-from data import SSDAugmentation, BaseTransform
-import torch.optim as optim
-
-from modeling.utils import anchor
 from data import build_dataloader
 from modeling import build_detector
 from utils.optimizer import build_optimizer
@@ -138,8 +128,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.config_file != "":
-        cfg.merge_from_file(args.config_file)
+    assert args.config_file != "", 'Config_file is in need !'
+    cfgname = os.path.basename(args.config_file).split('.')[0]
+    cfg = importlib.import_module('config.{}_defaults'.format(cfgname)).Cfg
+    cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
