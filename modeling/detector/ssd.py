@@ -9,15 +9,16 @@ from .build import MODEL_REGISTRY
 from modeling.utils import anchor
 
 
+
 @MODEL_REGISTRY.register()
 class SSD(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.backbone = build_backbone(cfg)
         self.head = build_head(cfg)
-        self.loss = build_loss(cfg)
-        self.prior = torch.tensor(anchor.AnchorGenerator()(),
-                                  dtype=torch.float)
+        # self.loss = build_loss(cfg)
+        # self.prior = torch.tensor(anchor.AnchorGenerator()(),
+        #                           dtype=torch.float)
 
     def forward(self, x):
         x = self.backbone(x)
@@ -25,7 +26,7 @@ class SSD(nn.Module):
         return x
 
     def loss_fn(self, out, gt):
-        return self.loss(out, gt, self.prior)
+        return self.head.loss(out, gt, )
 
 
 if __name__ == '__main__':
