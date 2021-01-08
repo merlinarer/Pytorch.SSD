@@ -149,7 +149,7 @@ class AnchorGenerator(object):
 
         return anchors
 
-    def grid_anchors(self, image_size,  device='cuda'):
+    def grid_anchors(self, image_size, clamp=True, xyxy2xywh=True,device='cuda'):
         """
         :argument:
             self.base_anchors: List[Tensor]
@@ -170,8 +170,19 @@ class AnchorGenerator(object):
             shift_=shift.type_as(self.base_anchors[num_levels].to(device))
             shift_anchors = self.base_anchors[num_levels].to(device)[None,:,:]+shift_[:,None,:]
             shift_anchors = shift_anchors.view(-1,4)
-            # if clamp:
-            #     shift_anchors = shift_anchors.clamp(min=0,max=image_size)
+            if clamp:
+                # TODO: clamp when tpye(image_size) in [int, float]
+                shift_anchors = shift_anchors.clamp(min=0,max=image_size)
+            if xyxy2xywh:
+                shift_anchors = xyxy_xywh(shift_anchors)
+            if type(image_size) in [int, float]:
+                shift_anchors =  shift_anchors / image_size
+            elif type(image_size) in [tuple, list]:
+                shift_anchors[..., 0] /= image_size[0]
+                shift_anchors[..., 2] /= image_size[0]
+                shift_anchors[..., 1] /= image_size[1]
+                shift_anchors[..., 3] /= image_size[1]
+
             multi_grid_anchors.append(shift_anchors)
         return multi_grid_anchors
 
@@ -199,14 +210,8 @@ class AnchorGenerator(object):
         concat_anchors = torch.cat(grid_anchors,dim=0) #[num_anchors_per_img, 4]
         if xyxy2xywh:
             concat_anchors = xyxy_xywh(concat_anchors)
-        if type(image_size) in [int, float]:
-            return concat_anchors / image_size
-        elif type(image_size) in [tuple, list]:
-            concat_anchors[..., 0] /= image_size[0]
-            concat_anchors[..., 2] /= image_size[0]
-            concat_anchors[..., 1] /= image_size[1]
-            concat_anchors[..., 3] /= image_size[1]
-            return concat_anchors
+
+        return concat_anchors
 
 
 class SSDAnchorGenerator(AnchorGenerator):
