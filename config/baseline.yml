@@ -1,0 +1,43 @@
+MODEL:
+  NAME: 'SSD'
+  BACKBONE:
+    NAME: 'SSDVGG'
+    PRETRAIN_PATH: 'pretrained/vgg16_caffe-292e1171.pth'
+  HEADS:
+    NAME: 'SSDHead'
+    NUM_CLASSES: 21
+  LOSSES:
+    NAME: 'SSDLoss'
+  DEVICE_ID: '("0, 1")'
+
+INPUT:
+  SIZE_TRAIN: 300
+  SIZE_TEST: 300
+
+DATA:
+  ROOT: '/home/workspace/merlin/data_dirs/VOCdevkit/VOC2007'
+#  ROOT: '/home/workspace/data_dirs/VOCdevkit/VOC2007'
+  VALROOT: '/home/workspace/merlin/data_dirs/VOCdevkit/VOCdevkit/VOC2007'
+
+SOLVER:
+  BATCH_SIZE: 16
+  CHECKPOINT_PERIOD: 20
+  EVAL_PERIOD: 50
+  OPTIMIZER_NAME: 'SGD'
+  MAX_EPOCHS: 400
+  BASE_LR: 0.002
+  WEIGHT_DECAY: 0.0005
+  MOMENTUM: 0.9
+  STEPS: [5000, 6000]
+  GAMMA: 0.1
+
+  WARMUP: True
+  WARMUP_ITERS: 200
+
+VARIRANCE: [0.1, 0.2]
+OUTPUT_DIR: "output/ddp_synbn_bs32"
+RESUME: False
+LOAD_FROM: "output/bs16_SGD_all_trans_model/epoch_80.pth"
+TEST:
+  IMS_PER_BATCH: 64
+
