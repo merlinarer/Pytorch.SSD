@@ -186,10 +186,27 @@ class AnchorGenerator(object):
 
         return x_, y_
 
-    def single_img_anchors(self, image_size):
+    def single_img_anchors(self, image_size, xyxy2xywh=True):
+        '''
+        Args:
+            image_size:
+            xyxy2xywh:
+
+        Returns:
+            concat_anchors: torch.Tensor: [num_anchors_per_img, 4] (resized to [0, 1])
+        '''
         grid_anchors = self.grid_anchors(image_size)
-        concat_anchors = torch.cat(grid_anchors,dim=0)
-        return concat_anchors
+        concat_anchors = torch.cat(grid_anchors,dim=0) #[num_anchors_per_img, 4]
+        if xyxy2xywh:
+            concat_anchors = xyxy_xywh(concat_anchors)
+        if type(image_size) in [int, float]:
+            return concat_anchors / image_size
+        elif type(image_size) in [tuple, list]:
+            concat_anchors[..., 0] /= image_size[0]
+            concat_anchors[..., 2] /= image_size[0]
+            concat_anchors[..., 1] /= image_size[1]
+            concat_anchors[..., 3] /= image_size[1]
+            return concat_anchors
 
 
 class SSDAnchorGenerator(AnchorGenerator):
