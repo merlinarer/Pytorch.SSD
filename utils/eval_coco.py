@@ -222,10 +222,7 @@ class COCOMap(object):
                 print('eval: {:d}/{:d} {:.3f}s'.format(i,
                                                        self.num_images, detect_time))
 
-        self.resFile = os.path.join(self.root, 'annotations', 'instances_'
-                                    + 'detection_results' + '.json')
-        with open(self.resFile, 'w') as f:
-            json.dump(results, f)
+        self.resFile = results
         print('Evaluating detections')
         self.coco_eval()
 
