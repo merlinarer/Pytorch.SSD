@@ -15,7 +15,7 @@ INPUT:
   SIZE_TEST: 300
 
 DATA:
-  ROOT: '/home/workspace/merlin/data_dirs/VOCdevkit/VOC2007'
+  TRAINROOT: '/home/workspace/merlin/data_dirs/VOCdevkit/VOC2007'
 #  ROOT: '/home/workspace/data_dirs/VOCdevkit/VOC2007'
   VALROOT: '/home/workspace/merlin/data_dirs/VOCdevkit/VOCdevkit/VOC2007'
 
@@ -39,6 +39,6 @@ DISTRIBUTE: False
 VARIRANCE: [0.1, 0.2]
 OUTPUT_DIR: "output/tem"
 
-RESUME: False
-LOAD_FROM: "output/bs16_SGD_all_trans_model/epoch_80.pth"
+RESUME: True
+LOAD_FROM: "output/bs16_SGD_all_trans_mymodel_changed_warmup/epoch_219.pth"
 
