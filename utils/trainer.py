@@ -226,7 +226,7 @@ def train_with_dp(cfg,
             time_elapsed // 60, time_elapsed % 60))
 
         # evaluate
-        if (epoch) % cfg.SOLVER.EVAL_PERIOD == 0:
+        if (epoch + 1) % cfg.SOLVER.EVAL_PERIOD == 0:
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
