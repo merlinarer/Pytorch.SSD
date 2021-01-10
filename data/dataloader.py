@@ -188,12 +188,17 @@ class COCODataset(Dataset):
             print(img_path)
             print('Corrupted image for %d' % index)
             return self[index + 1]
+        imginfo = {'name': self.image_ids[index],
+                   'height': h, 'width': w}
         box, label = self.load_anns(index, h, w)
+        if box.shape[0] == 0:
+            if (index + 1) < self.__len__():
+                return self.__getitem__(index + 1)
+            else:
+                return self.__getitem__(index - 1)
         if self.transform is not None:
             img, box, label = self.transform(img, box, label)
         assert len(box) == len(label)
-        imginfo = {'name': self.image_ids[index],
-                   'height': h, 'width': w}
         return torch.from_numpy(img).permute(2, 0, 1), box, label, imginfo
 
     def load_image(self, index):
@@ -209,10 +214,10 @@ class COCODataset(Dataset):
         anns = np.zeros((0, 5))
 
         # skip the image without annoations
-        # if len(annotation_ids) == 0:
-        #     return anns
         if len(annotation_ids) == 0:
-            annotation_ids = self.coco.getAnnIds(self.image_ids[0], iscrowd=False)
+            return anns[:, :-1], anns[:, -1]
+        # if len(annotation_ids) == 0:
+        #     annotation_ids = self.coco.getAnnIds(self.image_ids[0], iscrowd=False)
 
         coco_anns = self.coco.loadAnns(annotation_ids)
         for a in coco_anns:
