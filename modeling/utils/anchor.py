@@ -100,6 +100,7 @@ class PriorBox(object):
                     mean += [cx, cy, s_k/sqrt(ar), s_k*sqrt(ar)]
         # back to torch land
         output = torch.Tensor(mean).view(-1, 4)
+
         if self.clip:
             output.clamp_(max=1, min=0)
         return output
@@ -149,7 +150,7 @@ class AnchorGenerator(object):
 
         return anchors
 
-    def grid_anchors(self, image_size, clamp=True, xyxy2xywh=True,device='cuda'):
+    def grid_anchors(self, image_size, clamp=True, device='cuda'):
         """
         :argument:
             self.base_anchors: List[Tensor]
@@ -171,18 +172,7 @@ class AnchorGenerator(object):
             shift_anchors = self.base_anchors[num_levels].to(device)[None,:,:]+shift_[:,None,:]
             shift_anchors = shift_anchors.view(-1,4)
             if clamp:
-                # TODO: clamp when tpye(image_size) in [int, float]
                 shift_anchors = shift_anchors.clamp(min=0,max=image_size)
-            if xyxy2xywh:
-                shift_anchors = xyxy_xywh(shift_anchors)
-            if type(image_size) in [int, float]:
-                shift_anchors =  shift_anchors / image_size
-            elif type(image_size) in [tuple, list]:
-                shift_anchors[..., 0] /= image_size[0]
-                shift_anchors[..., 2] /= image_size[0]
-                shift_anchors[..., 1] /= image_size[1]
-                shift_anchors[..., 3] /= image_size[1]
-
             multi_grid_anchors.append(shift_anchors)
         return multi_grid_anchors
 
@@ -197,20 +187,9 @@ class AnchorGenerator(object):
 
         return x_, y_
 
-    def single_img_anchors(self, image_size, xyxy2xywh=True):
-        '''
-        Args:
-            image_size:
-            xyxy2xywh:
-
-        Returns:
-            concat_anchors: torch.Tensor: [num_anchors_per_img, 4] (resized to [0, 1])
-        '''
+    def single_img_anchors(self, image_size):
         grid_anchors = self.grid_anchors(image_size)
-        concat_anchors = torch.cat(grid_anchors,dim=0) #[num_anchors_per_img, 4]
-        if xyxy2xywh:
-            concat_anchors = xyxy_xywh(concat_anchors)
-
+        concat_anchors = torch.cat(grid_anchors,dim=0)
         return concat_anchors
 
 
@@ -358,9 +337,9 @@ if __name__ == '__main__':
         cv2.rectangle(frame, (int(pt[i][0]), int(pt[i][1])), (int(pt[i][2]), int(pt[i][3])), (255, 255, 255), 1)  # -> Draw the Rectangle
     print('--'*20)
     a = SSDAnchorGenerator()
-    grid_anchors = a.single_img_anchors(image_size=(300,300))
+    grid_anchors = a.single_img_anchors(image_size=300)
     g = grid_anchors
-    gt = xyxy_xywh(g)
+    gt = xyxy_xywh(g).cpu().numpy()
     #print(g[0])
     frame1 = np.zeros((300, 300, 3), dtype=np.uint8)
     for t in range(num):

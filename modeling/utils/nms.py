@@ -73,6 +73,7 @@ class Detect:
         Return:
              Shape: [batch,num_classes,5] 0 is score, 1234 is bb cords
         """
+        self.prior = self.prior.cuda()
         bs = loc_data.size(0)  # batch size
         num_priors = self.prior.size(0)
         output = torch.zeros(bs, self.num_classes, self.topk, 5)

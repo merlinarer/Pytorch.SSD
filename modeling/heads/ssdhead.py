@@ -71,6 +71,7 @@ class SSDHead(nn.Module):
     def forward(self, x):
         cls_scores = []
         bbox_preds = []
+        self.anchor = self.anchor.cuda()
         for feat, reg_conv, cls_conv in zip(x, self.reg_convs,
                                             self.cls_convs):
             cls_scores.append(cls_conv(feat).permute(0, 2, 3, 1).contiguous())

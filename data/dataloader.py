@@ -7,18 +7,15 @@
 import random
 import torch
 from torch.utils.data import Dataset
-from torch.utils.data import sampler
-import torchvision.transforms as transforms
 import logging
 from PIL import Image
-import numpy as np
-import glob
 import os
 from tabulate import tabulate
 import json
 import numpy as np
 import xml.etree.ElementTree as ET
 import cv2
+from pycocotools.coco import COCO
 
 
 # Custom Dataset
@@ -44,7 +41,7 @@ class CustomDataset(Dataset):
         table = [["{}".format(self.type), self.len]]
         headers = ['stage', 'len']
         datainfo = tabulate(table, headers, tablefmt="grid")
-        logger = logging.getLogger('merlin.baseline.dataset')
+        logger = logging.getLogger('evig.detection')
         logger.info('\n' + datainfo)
 
     def __len__(self):
@@ -69,7 +66,7 @@ class CustomDataset(Dataset):
 
 
 # VOC Dataset
-class MyVOCDataset(Dataset):
+class VOCDataset(Dataset):
     CLASSES = ('aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
                'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse',
                'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train',
@@ -97,7 +94,7 @@ class MyVOCDataset(Dataset):
         table = [["{}".format(self.type), self.len]]
         headers = ['stage', 'len']
         datainfo = tabulate(table, headers, tablefmt="grid")
-        logger = logging.getLogger('merlin.baseline')
+        logger = logging.getLogger('evig.detection')
         logger.info('\n' + datainfo)
 
     def __len__(self):
@@ -119,8 +116,10 @@ class MyVOCDataset(Dataset):
         if self.transform is not None:
             img, box, label = self.transform(img, box, label)
         assert len(box) == len(label)
+        imginfo = {'name': os.path.basename(img_path),
+                   'height': h, 'width': w}
 
-        return torch.from_numpy(img).permute(2, 0, 1), box, label, h, w, os.path.basename(img_path)
+        return torch.from_numpy(img).permute(2, 0, 1), box, label, imginfo
 
     def labelpaser(self, img, h, w):
         annotation_file = os.path.join(self.root, "Annotations", "%s.xml" % img)
@@ -142,3 +141,102 @@ class MyVOCDataset(Dataset):
 
         return (np.array(boxes, dtype=np.float32),
                 np.array(labels, dtype=np.int64))
+
+
+class COCODataset(Dataset):
+    def __init__(self, root, transform=None, type='train2017'):
+        self.root, self.type = root, type
+        self.transform = transform
+        self.coco = COCO(os.path.join(self.root, 'annotations', 'instances_'
+                                      + self.type + '.json'))
+        # self.image_ids = self.coco.getImgIds()[:100]  # for test
+        self.image_ids = self.coco.getImgIds()
+        self.load_classes()
+
+        table = [["{}".format(self.type), self.__len__()]]
+        headers = ['stage', 'len']
+        datainfo = tabulate(table, headers, tablefmt="grid")
+        logger = logging.getLogger('evig.detection')
+        logger.info('\n' + datainfo)
+
+    def load_classes(self):
+        categories = self.coco.loadCats(self.coco.getCatIds())
+        categories.sort(key=lambda x: x['id'])
+        # coco ids is not from 1, and not continue
+        # make a new index from 0 to 79, continuely
+        # classes:             {names:      new_index}
+        # coco_labels:         {new_index:  coco_index}
+        # coco_labels_inverse: {coco_index: new_index}
+        self.classes, self.coco_labels, self.coco_labels_inverse = {}, {}, {}
+        for c in categories:
+            self.coco_labels[len(self.classes)] = c['id']
+            self.coco_labels_inverse[c['id']] = len(self.classes)
+            self.classes[c['name']] = len(self.classes)
+        self.labels = {}
+        for k, v in self.classes.items():
+            self.labels[v] = k
+
+    def __len__(self):
+        return len(self.image_ids)
+
+    def __getitem__(self, index):
+        img_path = self.load_image(index)
+        try:
+            img = cv2.imread(img_path)
+            h, w, c = img.shape
+        except:
+            print(img_path)
+            print('Corrupted image for %d' % index)
+            return self[index + 1]
+        box, label = self.load_anns(index, h, w)
+        if self.transform is not None:
+            img, box, label = self.transform(img, box, label)
+        assert len(box) == len(label)
+        imginfo = {'name': self.image_ids[index],
+                   'height': h, 'width': w}
+        return torch.from_numpy(img).permute(2, 0, 1), box, label, imginfo
+
+    def load_image(self, index):
+        image_info = self.coco.loadImgs(self.image_ids[index])[0]
+        imgpath = os.path.join(self.root, self.type,
+                               image_info['file_name'])
+
+        return imgpath
+
+    def load_anns(self, index, h, w):
+        annotation_ids = self.coco.getAnnIds(self.image_ids[index], iscrowd=False)
+        # anns is num_anns x 5, (x1, x2, y1, y2, new_idx)
+        anns = np.zeros((0, 5))
+
+        # skip the image without annoations
+        # if len(annotation_ids) == 0:
+        #     return anns
+        if len(annotation_ids) == 0:
+            annotation_ids = self.coco.getAnnIds(self.image_ids[0], iscrowd=False)
+
+        coco_anns = self.coco.loadAnns(annotation_ids)
+        for a in coco_anns:
+            # skip the annotations with width or height < 1
+            if a['bbox'][2] < 1 or a['bbox'][3] < 1:
+                continue
+
+            ann = np.zeros((1, 5))
+            ann[0, :4] = a['bbox']
+            ann[0, 4] = self.coco_labels_inverse[a['category_id']]
+            anns = np.append(anns, ann, axis=0)
+
+        # (x1, y1, width, height) --> (x1, y1, x2, y2)
+        anns[:, 2] += anns[:, 0]
+        anns[:, 3] += anns[:, 1]
+
+        anns[:, 0] /= w
+        anns[:, 1] /= h
+        anns[:, 2] /= w
+        anns[:, 3] /= h
+
+        return np.array(anns[:, :4], dtype=np.float32), \
+               np.array(anns[:, 4], dtype=np.int64)
+
+    def image_aspect_ratio(self, index):
+        image = self.coco.loadImgs(self.image_ids[index])[0]
+        return float(image['width']) / float(image['height'])

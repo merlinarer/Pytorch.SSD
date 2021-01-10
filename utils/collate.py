@@ -1,10 +1,8 @@
 import torch
 
 
-def train_collate(batch):
-    imgs = []
-    boxs = []
-    labels = []
+def collate(batch):
+    imgs, boxs, labels, info = [], [], [], []
     for sample in batch:
         imgs.append(sample[0])
         boxs.append(torch.FloatTensor(sample[1]))
@@ -27,3 +25,4 @@ def val_collate(batch):
         w.append(sample[4])
         imgname.append(sample[5])
     return torch.stack(imgs, 0), boxs, labels, h, w, imgname
+
