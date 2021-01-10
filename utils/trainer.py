@@ -61,7 +61,7 @@ def train_with_ddp(local_rank,
     since = time.time()
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
         model.train(True)
-        logger.info("Epoch {}/{}".format(epoch, cfg.SOLVER.MAX_EPOCHS - 1))
+        logger.info("Epoch {}/{}".format(epoch + 1, cfg.SOLVER.MAX_EPOCHS))
         logger.info('-' * 10)
 
         running_loss = 0.0
@@ -97,11 +97,11 @@ def train_with_ddp(local_rank,
             if it % 10 == 0:
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
-                        epoch, it, running_loss / it,
+                        epoch + 1, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
 
         epoch_loss = running_loss / it
-        logger.info('epoch {} loss: {:.4f}'.format(epoch, epoch_loss))
+        logger.info('epoch {} loss: {:.4f}'.format(epoch + 1, epoch_loss))
 
         # save checkpoint
         if local_rank == 0 and (epoch + 1) % cfg.SOLVER.CHECKPOINT_PERIOD == 0:
@@ -117,7 +117,7 @@ def train_with_ddp(local_rank,
             time_elapsed // 60, time_elapsed % 60))
 
         # evaluate
-        if local_rank == 0 and (epoch) % cfg.SOLVER.EVAL_PERIOD == 0:
+        if local_rank == 0 and (epoch + 1) % cfg.SOLVER.EVAL_PERIOD == 0:
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
@@ -170,7 +170,7 @@ def train_with_dp(cfg,
     since = time.time()
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
         model.train(True)
-        logger.info("Epoch {}/{}".format(epoch, cfg.SOLVER.MAX_EPOCHS - 1))
+        logger.info("Epoch {}/{}".format(epoch + 1, cfg.SOLVER.MAX_EPOCHS))
         logger.info('-' * 10)
 
         running_loss = 0.0
@@ -206,11 +206,11 @@ def train_with_dp(cfg,
             if it % 10 == 0:
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
-                        epoch, it, running_loss / it,
+                        epoch + 1, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
 
         epoch_loss = running_loss / it
-        logger.info('epoch {} loss: {:.4f}'.format(epoch, epoch_loss))
+        logger.info('epoch {} loss: {:.4f}'.format(epoch + 1, epoch_loss))
 
         # save checkpoint
         if (epoch + 1) % cfg.SOLVER.CHECKPOINT_PERIOD == 0:
@@ -219,7 +219,7 @@ def train_with_dp(cfg,
                               cfg.MODEL.DEVICE_ID) - 2) > 1 else model.state_dict(),
                           'optimizer': optimizer.state_dict()
                           }
-            save_checkpoint(checkpoint, epoch, cfg)
+            save_checkpoint(checkpoint, epoch + 1, cfg)
 
         time_elapsed = time.time() - since
         logger.info('Training complete in {:.0f}m {:.0f}s\n'.format(
