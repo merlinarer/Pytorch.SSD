@@ -18,6 +18,7 @@ from data import build_dataloader
 
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
+#from torch.utils.tensorboard import SummaryWriter
 from utils.eval_voc import VOCMap
 from utils.eval_coco import COCOMap
 
@@ -26,17 +27,31 @@ def train_with_ddp(local_rank,
                    nprocs,
                    cfg,
                    model,
-                   optimizer):
-    # logger
-    logger = setup_logger(name="evig.detection",
-                          distributed_rank=local_rank,
-                          output=cfg.OUTPUT_DIR)
-    logger.info("training...")
+                   optimizer,
+                    logger=None
+                   ):
 
-    dist.init_process_group(backend='nccl',
+    if cfg.LAUNCH:
+        dist.init_process_group(backend='nccl')
+        local_rank = torch.distributed.get_rank()
+        torch.cuda.set_device(local_rank)
+
+        # nprocs = torch.cuda.device_count()
+        
+    else:
+        dist.init_process_group(backend='nccl',
                             init_method='tcp://0.0.0.0:8891',
                             world_size=nprocs,
                             rank=local_rank)
+
+    # logger
+    
+    if not cfg.LAUNCH:
+        logger = setup_logger(name="evig.detection",
+                          distributed_rank=local_rank,
+                          output=cfg.OUTPUT_DIR)
+
+    logger.info("training...")
 
     train_loader, val_loader = build_dataloader(cfg.DATA.NAME,
                                                 cfg.DATA.TRAINROOT,
@@ -51,11 +66,13 @@ def train_with_ddp(local_rank,
         start_epoch = epoch
     else:
         start_epoch = 0
-
-    torch.cuda.set_device(local_rank)
+    if not cfg.LAUNCH:
+        torch.cuda.set_device(local_rank)
     model.cuda(local_rank)
+
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(local_rank)
-    model = DDP(model, device_ids=[local_rank])
+    model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+
 
     # Train and val
     since = time.time()
@@ -89,12 +106,14 @@ def train_with_ddp(local_rank,
             optimizer.step()
             past_iter = start_epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
             adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, past_iter + it)
+            #from IPython import embed;embed()
 
             # statistics
             with torch.no_grad():
                 running_loss += loss
 
             if it % 10 == 0:
+                
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
                         epoch + 1, it, running_loss / it,

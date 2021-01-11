@@ -8,7 +8,7 @@ MODEL:
     NUM_CLASSES: 81
   LOSSES:
     NAME: 'SSDLoss'
-  DEVICE_ID: '("1")'
+  DEVICE_ID: '("2")'
 
 INPUT:
   SIZE_TRAIN: 300
@@ -16,8 +16,8 @@ INPUT:
 
 DATA:
   NAME: 'COCO'
-  TRAINROOT: '/home/data/COCO/coco'
-  VALROOT: '/home/data/COCO/coco'
+  TRAINROOT: '/workspace/data_dir/COCO/coco'
+  VALROOT: '/workspace/data_dir/COCO/coco'
 
 SOLVER:
   BATCH_SIZE: 16
@@ -35,7 +35,8 @@ SOLVER:
   WARMUP: True
   WARMUP_ITERS: 1000
 
-DISTRIBUTE: False
+DISTRIBUTE: True
+LAUNCH: False
 VARIRANCE: [0.1, 0.2]
 OUTPUT_DIR: "output/tem"
 

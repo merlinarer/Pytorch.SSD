@@ -91,3 +91,4 @@ Cfg.LOAD_FROM = ""
 Cfg.RESUME = False
 Cfg.VARIRANCE = [1, 1]
 Cfg.DISTRIBUTE = True
+Cfg.LAUNCH = False
