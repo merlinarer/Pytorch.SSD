@@ -16,8 +16,8 @@ INPUT:
 
 DATA:
   NAME: 'COCO'
-  TRAINROOT: '/home/data/COCO/coco'
-  VALROOT: '/home/data/COCO/coco'
+  TRAINROOT: '/workspace/data_dir/COCO/coco'
+  VALROOT: '/workspace/data_dir/COCO/coco'
 
 SOLVER:
   BATCH_SIZE: 32
@@ -35,7 +35,8 @@ SOLVER:
   WARMUP: True
   WARMUP_ITERS: 1000
 
-DISTRIBUTE: False
+DISTRIBUTE: True
+LAUNCH: False
 VARIRANCE: [0.1, 0.2]
 OUTPUT_DIR: "output/cocotrainval35k_bs32_singleGPU"
 

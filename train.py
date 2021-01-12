@@ -23,6 +23,7 @@ def main():
                         default="",
                         help="path to config file",
                         type=str)
+    parser.add_argument('--local_rank', help='local rank', type=int, default=-1)
     parser.add_argument("opts",
                         help="Modify config options using the command-line",
                         default=None,
@@ -53,7 +54,7 @@ def main():
 
     if cfg.MODEL.DEVICE == "cuda":
         os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
-        torch.set_default_tensor_type('torch.cuda.FloatTensor')
+        # torch.set_default_tensor_type('torch.cuda.FloatTensor')
     cudnn.benchmark = True
     nprocs = torch.cuda.device_count()
 
@@ -66,8 +67,11 @@ def main():
                                 cfg.SOLVER.WEIGHT_DECAY)
 
     if cfg.DISTRIBUTE:
-        mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
+        if cfg.LAUNCH is False:
+            mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
                  args=(nprocs, cfg, model, optimizer))
+        else:
+            train_with_ddp(None, None ,cfg, model, optimizer,logger)
     else:
         train_with_dp(cfg, model, optimizer)
 
