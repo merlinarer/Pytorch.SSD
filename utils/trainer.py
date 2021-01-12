@@ -87,7 +87,7 @@ def train_with_ddp(local_rank,
             loss = model.module.loss_fn(out, (gt_bb, gt_label))
             loss.backward()
             optimizer.step()
-            past_iter = start_epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
+            past_iter = epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
             adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, past_iter + it)
 
             # statistics
@@ -196,7 +196,7 @@ def train_with_dp(cfg,
             loss = model.module.loss_fn(out, (gt_bb, gt_label))
             loss.backward()
             optimizer.step()
-            past_iter = start_epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
+            past_iter = epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
             adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, past_iter + it)
 
             # statistics
