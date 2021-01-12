@@ -8,7 +8,7 @@ MODEL:
     NUM_CLASSES: 81
   LOSSES:
     NAME: 'SSDLoss'
-  DEVICE_ID: '("1")'
+  DEVICE_ID: '("3")'
 
 INPUT:
   SIZE_TRAIN: 300
@@ -20,16 +20,16 @@ DATA:
   VALROOT: '/home/data/COCO/coco'
 
 SOLVER:
-  BATCH_SIZE: 16
+  BATCH_SIZE: 32
   VAL_BATCH_SIZE: 48
-  CHECKPOINT_PERIOD: 20
+  CHECKPOINT_PERIOD: 50
   EVAL_PERIOD: 50
   OPTIMIZER_NAME: 'SGD'
-  MAX_EPOCHS: 400
+  MAX_EPOCHS: 1000
   BASE_LR: 0.002
   WEIGHT_DECAY: 0.0005
   MOMENTUM: 0.9
-  STEPS: [5000, 6000]
+  STEPS: [60000]
   GAMMA: 0.1
 
   WARMUP: True
@@ -37,7 +37,7 @@ SOLVER:
 
 DISTRIBUTE: False
 VARIRANCE: [0.1, 0.2]
-OUTPUT_DIR: "output/tem"
+OUTPUT_DIR: "output/cocotrainval35k_bs32_singleGPU"
 
 RESUME: False
 LOAD_FROM: "output/bs16_SGD_all_trans_model/epoch_80.pth"
