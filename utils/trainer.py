@@ -104,9 +104,8 @@ def train_with_ddp(local_rank,
             loss = model.module.loss_fn(out, (gt_bb, gt_label))
             loss.backward()
             optimizer.step()
-            past_iter = epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
-            adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, past_iter + it)
-            #from IPython import embed;embed()
+            past_iter = int(epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE)
+            adjust_learning_rate(cfg, optimizer, past_iter + it)
 
             # statistics
             with torch.no_grad():
@@ -178,12 +177,29 @@ def train_with_dp(cfg,
         model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM)
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
+        for k, v in optimizer.state.items():
+            if 'momentum_buffer' not in v:
+                continue
+            optimizer.state[k]['momentum_buffer'] = \
+                optimizer.state[k]['momentum_buffer'].cuda()
         start_epoch = epoch
     else:
         start_epoch = 0
 
     model = model.cuda()
     model = nn.DataParallel(model)
+
+    assert cfg.DATA.NAME in ['VOC', 'COCO'], \
+        'Only VOC and COCO is supported !'
+    if cfg.DATA.NAME == 'VOC':
+        ap = VOCMap(cfg.DATA.VALROOT,
+                    cfg.MODEL.HEADS.NUM_CLASSES,
+                    num_images=len(val_loader.dataset),
+                    type='test')
+    else:
+        ap = COCOMap(cfg.DATA.VALROOT,
+                     num_images=len(val_loader.dataset),
+                     type='val2017')
 
     # Train and val
     since = time.time()
@@ -196,11 +212,11 @@ def train_with_dp(cfg,
         # Iterate over data
         it = 0
         for imgs, gt_bb, gt_label, _ in train_loader:
-            it += 1
             inputs = Variable(imgs.cuda(), requires_grad=False)
             now_batch_size, c, h, w = imgs.shape
             if now_batch_size < cfg.SOLVER.BATCH_SIZE:  # skip the last batch
                 continue
+            it += 1
 
             # zero the gradients
             optimizer.zero_grad()
@@ -215,8 +231,8 @@ def train_with_dp(cfg,
             loss = model.module.loss_fn(out, (gt_bb, gt_label))
             loss.backward()
             optimizer.step()
-            past_iter = epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE
-            adjust_learning_rate(cfg, optimizer, cfg.SOLVER.GAMMA, past_iter + it)
+            past_iter = int(epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE)
+            adjust_learning_rate(cfg, optimizer, past_iter + it)
 
             # statistics
             with torch.no_grad():
@@ -249,19 +265,5 @@ def train_with_dp(cfg,
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
-
-            assert cfg.DATA.NAME in ['VOC', 'COCO'], \
-                'Only VOC and COCO is supported !'
-            if cfg.DATA.NAME == 'VOC':
-                ap = VOCMap(cfg.DATA.VALROOT,
-                            cfg.MODEL.HEADS.NUM_CLASSES,
-                            num_images=len(val_loader.dataset),
-                            type='test')
-                ap(model, val_loader)
-            else:
-                ap = COCOMap(cfg.DATA.VALROOT,
-                             num_images=len(val_loader.dataset),
-                             type='val2017')
-                ap(model, val_loader)
-
+            ap(model, val_loader)
             model.module.head.nms = False
