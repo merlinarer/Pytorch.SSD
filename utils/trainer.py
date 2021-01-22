@@ -18,7 +18,7 @@ from data import build_dataloader
 
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from utils.eval_voc import VOCMap
 from utils.eval_coco import COCOMap
 from utils.optimizer import build_optimizer
@@ -29,24 +29,22 @@ def train_with_ddp(local_rank,
                    nprocs,
                    cfg,
                    logger=None):
-    if cfg.LAUNCH:
-        dist.init_process_group(backend='nccl')
-        local_rank = torch.distributed.get_rank()
-        torch.cuda.set_device(local_rank)
-    else:
+    # mpi init
+    if not cfg.LAUNCH:
         dist.init_process_group(backend='nccl',
                                 init_method='tcp://0.0.0.0:8891',
                                 world_size=nprocs,
                                 rank=local_rank)
-    # logger
-    if not cfg.LAUNCH:
         logger = setup_logger(name="evig.detection",
                               distributed_rank=local_rank,
                               output=cfg.OUTPUT_DIR)
     logger.info("training...")
 
-    if not cfg.LAUNCH:
-        torch.cuda.set_device(local_rank)
+    # set cuda device
+    torch.cuda.set_device(local_rank)
+
+    writer = SummaryWriter(log_dir='log')
+
     model = build_detector(cfg)
     train_loader, val_loader = build_dataloader(cfg)
     optimizer = build_optimizer(cfg, model)
@@ -83,6 +81,7 @@ def train_with_ddp(local_rank,
     since = time.time()
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
         model.train(True)
+        train_loader.sampler.set_epoch(epoch)
         logger.info("Epoch {}/{}".format(epoch + 1, cfg.SOLVER.MAX_EPOCHS))
         logger.info('-' * 10)
 
@@ -112,15 +111,18 @@ def train_with_ddp(local_rank,
             past_iter = int(epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE)
             adjust_learning_rate(cfg, optimizer, past_iter + it)
 
+            loss_value = loss.data.clone()
+            dist.all_reduce(loss_value.div_(dist.get_world_size()))
             # statistics
             with torch.no_grad():
-                running_loss += loss
+                running_loss += loss_value.detach().item()
 
-            if it % 10 == 0:
+            if it % 10 == 0 and dist.get_rank()==0:
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
                         epoch + 1, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
+                writer.add_scalar('loss', running_loss / it, global_step=past_iter + it)
 
         epoch_loss = running_loss / it
         logger.info('epoch {} loss: {:.4f}'.format(epoch + 1, epoch_loss))
@@ -141,7 +143,7 @@ def train_with_ddp(local_rank,
         # evaluate
         if local_rank == 0 and (epoch + 1) % cfg.SOLVER.EVAL_PERIOD == 0:
             logger.info('evaluate...')
-            model.train(False)
+            model.eval()
             model.module.head.nms = True
             ap(model, val_loader)
             model.module.head.nms = False

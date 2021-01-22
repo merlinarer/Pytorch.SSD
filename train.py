@@ -8,7 +8,7 @@ import argparse
 import os
 import torch
 from torch.backends import cudnn
-
+import torch.distributed as dist
 import importlib
 from utils.logger import setup_logger
 from modeling import build_detector
@@ -41,8 +41,12 @@ def main():
     output_dir = cfg.OUTPUT_DIR
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
-    logger = setup_logger(name="evig.detection", output=output_dir)
+    if cfg.DISTRIBUTE and cfg.LAUNCH:
+        dist.init_process_group(backend='nccl', init_method='env://')
+        local_rank = torch.distributed.get_rank()
+        logger = setup_logger(name="evig.detection", output=output_dir,distributed_rank=local_rank)
+    else:
+        logger = setup_logger(name="evig.detection", output=output_dir,)
     logger.info(args)
 
     if args.config_file != "":
@@ -62,7 +66,7 @@ def main():
             mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
                      args=(nprocs, cfg))
         else:
-            train_with_ddp(None, None, cfg, logger)
+            train_with_ddp(local_rank, None, cfg, logger)
     else:
         train_with_dp(cfg)
 
