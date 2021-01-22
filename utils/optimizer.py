@@ -1,22 +1,16 @@
 import torch.optim as optim
 
 
-def build_optimizer(optimizer_name,
-                    model,
-                    base_lr,
-                    momentum,
-                    wd):
-    if optimizer_name == 'SGD':
+def build_optimizer(cfg, model):
+    if cfg.SOLVER.OPTIMIZER_NAME == 'SGD':
         optimizer = optim.SGD(model.parameters(),
-                              lr=base_lr,
-                              momentum=momentum,
-                              weight_decay=wd)
-    elif optimizer_name == 'Adam':
+                              lr=cfg.SOLVER.BASE_LR,
+                              momentum=cfg.SOLVER.MOMENTUM,
+                              weight_decay=cfg.SOLVER.WEIGHT_DECAY)
+    elif cfg.SOLVER.OPTIMIZER_NAME == 'Adam':
         optimizer = optim.Adam(model.parameters(),
-                               lr=base_lr,
-                               weight_decay=wd)
-
+                               lr=cfg.SOLVER.BASE_LR,
+                               weight_decay=cfg.SOLVER.WEIGHT_DECAY)
     else:
         raise RuntimeError
-
     return optimizer

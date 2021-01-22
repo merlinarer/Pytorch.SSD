@@ -18,61 +18,66 @@ from data import build_dataloader
 
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-#from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from utils.eval_voc import VOCMap
 from utils.eval_coco import COCOMap
+from utils.optimizer import build_optimizer
+from modeling import build_detector
 
 
 def train_with_ddp(local_rank,
                    nprocs,
                    cfg,
-                   model,
-                   optimizer,
-                    logger=None
-                   ):
-
+                   logger=None):
     if cfg.LAUNCH:
         dist.init_process_group(backend='nccl')
         local_rank = torch.distributed.get_rank()
         torch.cuda.set_device(local_rank)
-
-        # nprocs = torch.cuda.device_count()
-        
     else:
         dist.init_process_group(backend='nccl',
-                            init_method='tcp://0.0.0.0:8891',
-                            world_size=nprocs,
-                            rank=local_rank)
-
+                                init_method='tcp://0.0.0.0:8891',
+                                world_size=nprocs,
+                                rank=local_rank)
     # logger
-    
     if not cfg.LAUNCH:
         logger = setup_logger(name="evig.detection",
-                          distributed_rank=local_rank,
-                          output=cfg.OUTPUT_DIR)
-
+                              distributed_rank=local_rank,
+                              output=cfg.OUTPUT_DIR)
     logger.info("training...")
 
-    train_loader, val_loader = build_dataloader(cfg.DATA.NAME,
-                                                cfg.DATA.TRAINROOT,
-                                                cfg.DATA.VALROOT,
-                                                cfg.SOLVER.BATCH_SIZE,
-                                                cfg.SOLVER.VAL_BATCH_SIZE)
+    if not cfg.LAUNCH:
+        torch.cuda.set_device(local_rank)
+    model = build_detector(cfg)
+    train_loader, val_loader = build_dataloader(cfg)
+    optimizer = build_optimizer(cfg, model)
 
     if cfg.RESUME:
         model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM)
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
+        for k, v in optimizer.state.items():
+            if 'momentum_buffer' not in v:
+                continue
+            optimizer.state[k]['momentum_buffer'] = \
+                optimizer.state[k]['momentum_buffer'].cuda()
         start_epoch = epoch
     else:
         start_epoch = 0
-    if not cfg.LAUNCH:
-        torch.cuda.set_device(local_rank)
-    model.cuda(local_rank)
 
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(local_rank)
+    model.cuda(local_rank)
     model = DDP(model, device_ids=[local_rank], output_device=local_rank)
 
+    assert cfg.DATA.NAME in ['VOC', 'COCO'], \
+        'Only VOC and COCO is supported !'
+    if cfg.DATA.NAME == 'VOC':
+        ap = VOCMap(cfg.DATA.VALROOT,
+                    cfg.MODEL.HEADS.NUM_CLASSES,
+                    num_images=len(val_loader.dataset),
+                    type='test')
+    else:
+        ap = COCOMap(cfg.DATA.VALROOT,
+                     num_images=len(val_loader.dataset),
+                     type='val2017')
 
     # Train and val
     since = time.time()
@@ -112,7 +117,6 @@ def train_with_ddp(local_rank,
                 running_loss += loss
 
             if it % 10 == 0:
-                
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
                         epoch + 1, it, running_loss / it,
@@ -139,39 +143,18 @@ def train_with_ddp(local_rank,
             logger.info('evaluate...')
             model.train(False)
             model.module.head.nms = True
-
-            assert cfg.DATA.NAME in ['VOC', 'COCO'], \
-                'Only VOC and COCO is supported !'
-            if cfg.DATA.NAME == 'VOC':
-                from utils.eval_voc import VOCMap
-                ap = VOCMap(cfg.DATA.VALROOT,
-                            cfg.MODEL.HEADS.NUM_CLASSES,
-                            num_images=len(val_loader.dataset),
-                            type='test')
-                ap(model, val_loader)
-            else:
-                from utils.eval_coco import COCOMap
-                ap = COCOMap(cfg.DATA.VALROOT,
-                             num_images=len(val_loader.dataset),
-                             type='val2017')
-                ap(model, val_loader)
-
+            ap(model, val_loader)
             model.module.head.nms = False
 
 
-def train_with_dp(cfg,
-                  model,
-                  optimizer):
+def train_with_dp(cfg):
     # logger
     logger = logging.getLogger(name="evig.detection")
     logger.info("training...")
 
-    train_loader, val_loader = build_dataloader(cfg.DATA.NAME,
-                                                cfg.DATA.TRAINROOT,
-                                                cfg.DATA.VALROOT,
-                                                cfg.SOLVER.BATCH_SIZE,
-                                                cfg.SOLVER.VAL_BATCH_SIZE,
-                                                distribute=False)
+    model = build_detector(cfg)
+    train_loader, val_loader = build_dataloader(cfg)
+    optimizer = build_optimizer(cfg, model)
 
     if cfg.RESUME:
         model_state_dict, optimizer_state_dict, epoch = resume_from(cfg.LOAD_FROM)
