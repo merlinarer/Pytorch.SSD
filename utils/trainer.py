@@ -3,7 +3,7 @@
 @author:  merlin
 @contact: merlinarer@gmail.com
 """
-
+import os
 import torch
 from torch import nn
 from torch.autograd import Variable
@@ -28,6 +28,7 @@ from modeling import build_detector
 def train_with_ddp(local_rank,
                    nprocs,
                    cfg,
+                   args,
                    logger=None):
     # mpi init
     if not cfg.LAUNCH:
@@ -42,8 +43,17 @@ def train_with_ddp(local_rank,
 
     # set cuda device
     torch.cuda.set_device(local_rank)
-
-    writer = SummaryWriter(log_dir='log')
+    if cfg.LAUNCH:
+        local_world_size = args.local_world_size
+        n = torch.cuda.device_count() // local_world_size
+        device_ids = list(range(local_rank * n, (local_rank + 1) * n))
+        print(
+            f"[{os.getpid()}] rank = {dist.get_rank()}, "
+            + f"world_size = {dist.get_world_size()}, n = {n}, device_ids = {device_ids} \n", end=''
+        )
+    dist.barrier()
+    if dist.get_rank()==0:
+        writer = SummaryWriter(log_dir='log')
 
     model = build_detector(cfg)
     train_loader, val_loader = build_dataloader(cfg)
@@ -117,12 +127,13 @@ def train_with_ddp(local_rank,
             with torch.no_grad():
                 running_loss += loss_value.detach().item()
 
-            if it % 10 == 0 and dist.get_rank()==0:
+            if it % 10 == 0:
                 logger.info(
                     'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
                         epoch + 1, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
-                writer.add_scalar('loss', running_loss / it, global_step=past_iter + it)
+                if dist.get_rank()==0:
+                    writer.add_scalar('loss', running_loss / it, global_step=past_iter + it)
 
         epoch_loss = running_loss / it
         logger.info('epoch {} loss: {:.4f}'.format(epoch + 1, epoch_loss))

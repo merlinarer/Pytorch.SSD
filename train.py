@@ -24,6 +24,7 @@ def main():
                         help="path to config file",
                         type=str)
     parser.add_argument('--local_rank', help='local rank', type=int, default=-1)
+    parser.add_argument("--local_world_size", type=int, default=1)
     parser.add_argument("opts",
                         help="Modify config options using the command-line",
                         default=None,
@@ -42,7 +43,17 @@ def main():
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
     if cfg.DISTRIBUTE and cfg.LAUNCH:
-        dist.init_process_group(backend='nccl', init_method='env://')
+        env_dict = {
+            key: os.environ[key]
+            for key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")
+        }
+
+        print(f"[{os.getpid()}] Initializing process group with: {env_dict}")
+        dist.init_process_group(backend="nccl")
+        print(
+            f"[{os.getpid()}]: world_size = {dist.get_world_size()}, "
+            + f"rank = {dist.get_rank()}, backend={dist.get_backend()} \n", end=''
+        )
         local_rank = torch.distributed.get_rank()
         logger = setup_logger(name="evig.detection", output=output_dir,distributed_rank=local_rank)
     else:
@@ -64,9 +75,9 @@ def main():
     if cfg.DISTRIBUTE:
         if cfg.LAUNCH is False:
             mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
-                     args=(nprocs, cfg))
+                     args=(nprocs, cfg, args))
         else:
-            train_with_ddp(local_rank, None, cfg, logger)
+            train_with_ddp(local_rank, None, cfg, args, logger=logger)
     else:
         train_with_dp(cfg)
 
