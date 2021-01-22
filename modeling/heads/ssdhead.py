@@ -195,8 +195,6 @@ class SSDHead(nn.Module):
         loss_cla_neg = topk_loss_cls_neg.sum()
         loss_cla = (loss_cla_pos + loss_cla_neg) / num_total_samples
 
-
-        #
         loss_bbox = smooth_l1(bbox_preds, bbox_targets, weight=bbox_weights,avg_factor=num_total_samples)
         # from IPython import embed;
         # embed()

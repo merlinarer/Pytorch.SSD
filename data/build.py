@@ -10,45 +10,40 @@ from data.dataloader import VOCDataset, COCODataset
 from data import SSDAugmentation, BaseTransform
 
 
-def build_dataloader(datasetname,
-                     trainroot,
-                     valroot,
-                     batchsize,
-                     test_bs,
-                     distribute=True):
-    assert datasetname in ['VOC', 'COCO'], 'Only VOC and COCO is supported !'
-    if datasetname == 'VOC':
-        train_dataset = VOCDataset(root=trainroot,
+def build_dataloader(cfg):
+    assert cfg.DATA.NAME in ['VOC', 'COCO'], 'Only VOC and COCO is supported !'
+    if cfg.DATA.NAME == 'VOC':
+        train_dataset = VOCDataset(root=cfg.DATA.TRAINROOT,
                                    transform=SSDAugmentation(),
                                    type='trainval')
-        val_dataset = VOCDataset(root=valroot,
+        val_dataset = VOCDataset(root=cfg.DATA.VALROOT,
                                  transform=BaseTransform(),
                                  type='test')
     else:
-        train_dataset = COCODataset(root=trainroot,
+        train_dataset = COCODataset(root=cfg.DATA.TRAINROOT,
                                     transform=SSDAugmentation(),
                                     type='train2017')
-        val_dataset = COCODataset(root=valroot,
+        val_dataset = COCODataset(root=cfg.DATA.VALROOT,
                                   transform=BaseTransform(),
                                   type='val2017')
 
-    if distribute:
+    if cfg.DISTRIBUTE:
         sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
         train_loader = DataLoader(train_dataset,
-                                  batch_size=batchsize,
-                                  num_workers=0,
+                                  batch_size=cfg.SOLVER.BATCH_SIZE,
+                                  num_workers=8,
                                   collate_fn=collate,
                                   sampler=sampler,
                                   pin_memory=False)
     else:
         train_loader = DataLoader(train_dataset,
-                                  batch_size=batchsize,
+                                  batch_size=cfg.SOLVER.BATCH_SIZE,
                                   shuffle=True,
                                   num_workers=8,
                                   collate_fn=collate,
                                   pin_memory=False)
     val_loader = DataLoader(val_dataset,
-                            batch_size=test_bs,
+                            batch_size=cfg.SOLVER.VAL_BATCH_SIZE,
                             shuffle=True,
                             num_workers=8,
                             collate_fn=collate,

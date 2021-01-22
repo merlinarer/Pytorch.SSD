@@ -57,23 +57,14 @@ def main():
         # torch.set_default_tensor_type('torch.cuda.FloatTensor')
     cudnn.benchmark = True
     nprocs = torch.cuda.device_count()
-
-    # build model / optimizer
-    model = build_detector(cfg)
-    optimizer = build_optimizer(cfg.SOLVER.OPTIMIZER_NAME,
-                                model,
-                                cfg.SOLVER.BASE_LR,
-                                cfg.SOLVER.MOMENTUM,
-                                cfg.SOLVER.WEIGHT_DECAY)
-
     if cfg.DISTRIBUTE:
         if cfg.LAUNCH is False:
             mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
-                 args=(nprocs, cfg, model, optimizer))
+                     args=(nprocs, cfg))
         else:
-            train_with_ddp(None, None ,cfg, model, optimizer,logger)
+            train_with_ddp(None, None, cfg, logger)
     else:
-        train_with_dp(cfg, model, optimizer)
+        train_with_dp(cfg)
 
 
 if __name__ == '__main__':
