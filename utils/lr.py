@@ -1,7 +1,8 @@
 import torch
 
 
-def adjust_learning_rate(cfg, optimizer, gamma, step):
+def adjust_learning_rate(cfg, optimizer, step):
+    gamma = cfg.SOLVER.GAMMA
     if cfg.SOLVER.WARMUP and step < cfg.SOLVER.WARMUP_ITERS:
         lr = cfg.SOLVER.BASE_LR * step * 1.0 / cfg.SOLVER.WARMUP_ITERS
     elif step in cfg.SOLVER.STEPS:
@@ -11,3 +12,4 @@ def adjust_learning_rate(cfg, optimizer, gamma, step):
         return
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+    return

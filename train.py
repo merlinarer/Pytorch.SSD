@@ -8,7 +8,7 @@ import argparse
 import os
 import torch
 from torch.backends import cudnn
-
+import torch.distributed as dist
 import importlib
 from utils.logger import setup_logger
 from modeling import build_detector
@@ -24,6 +24,7 @@ def main():
                         help="path to config file",
                         type=str)
     parser.add_argument('--local_rank', help='local rank', type=int, default=-1)
+    parser.add_argument("--local_world_size", type=int, default=1)
     parser.add_argument("opts",
                         help="Modify config options using the command-line",
                         default=None,
@@ -41,8 +42,22 @@ def main():
     output_dir = cfg.OUTPUT_DIR
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    if cfg.DISTRIBUTE and cfg.LAUNCH:
+        env_dict = {
+            key: os.environ[key]
+            for key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")
+        }
 
-    logger = setup_logger(name="evig.detection", output=output_dir)
+        print(f"[{os.getpid()}] Initializing process group with: {env_dict}")
+        dist.init_process_group(backend="nccl")
+        print(
+            f"[{os.getpid()}]: world_size = {dist.get_world_size()}, "
+            + f"rank = {dist.get_rank()}, backend={dist.get_backend()} \n", end=''
+        )
+        local_rank = torch.distributed.get_rank()
+        logger = setup_logger(name="evig.detection", output=output_dir,distributed_rank=local_rank)
+    else:
+        logger = setup_logger(name="evig.detection", output=output_dir,)
     logger.info(args)
 
     if args.config_file != "":
@@ -57,23 +72,14 @@ def main():
         # torch.set_default_tensor_type('torch.cuda.FloatTensor')
     cudnn.benchmark = True
     nprocs = torch.cuda.device_count()
-
-    # build model / optimizer
-    model = build_detector(cfg)
-    optimizer = build_optimizer(cfg.SOLVER.OPTIMIZER_NAME,
-                                model,
-                                cfg.SOLVER.BASE_LR,
-                                cfg.SOLVER.MOMENTUM,
-                                cfg.SOLVER.WEIGHT_DECAY)
-
     if cfg.DISTRIBUTE:
         if cfg.LAUNCH is False:
             mp.spawn(train_with_ddp, nprocs=nprocs, join=True,
-                 args=(nprocs, cfg, model, optimizer))
+                     args=(nprocs, cfg, args))
         else:
-            train_with_ddp(None, None ,cfg, model, optimizer,logger)
+            train_with_ddp(local_rank, None, cfg, args, logger=logger)
     else:
-        train_with_dp(cfg, model, optimizer)
+        train_with_dp(cfg)
 
 
 if __name__ == '__main__':

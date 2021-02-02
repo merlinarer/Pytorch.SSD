@@ -149,7 +149,7 @@ class COCODataset(Dataset):
         self.transform = transform
         self.coco = COCO(os.path.join(self.root, 'annotations', 'instances_'
                                       + self.type + '.json'))
-        # self.image_ids = self.coco.getImgIds()[:100]  # for test
+        # self.image_ids = self.coco.getImgIds()[:1000]  # for test
         self.image_ids = self.coco.getImgIds()
         self.load_classes()
 

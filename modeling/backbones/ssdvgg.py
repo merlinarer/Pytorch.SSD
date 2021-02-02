@@ -21,11 +21,15 @@ class SSDVGG(nn.Module):
         self.depth = cfg.MODEL.BACKBONE.DEPTH
         self.input_size = cfg.INPUT.SIZE_TRAIN
         self.out_feature_indices = cfg.MODEL.BACKBONE.OUT_INDICES
+        self.pretrained = cfg.MODEL.BACKBONE.PRETRAIN_PATH
 
         assert self.depth == 16, 'Only VGG 16 is supported now!'
         assert self.input_size in [300, 512]
 
-        self.features = vggmodel.vgg16(pretrained=True).features
+        if self.pretrained is not None:
+            self.features = vggmodel.vgg16(pretrained=False).features
+        else:
+            self.features = vggmodel.vgg16(pretrained=True).features
         for m in self.features.modules():
             if isinstance(m, nn.MaxPool2d):
                 m.ceil_mode = True
@@ -50,6 +54,9 @@ class SSDVGG(nn.Module):
         self.init_weights()
 
     def init_weights(self):
+        if self.pretrained is not None:
+            state_dict = torch.load(self.pretrained)
+            self.load_state_dict(state_dict, strict=False)
         for m in self.extra.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_uniform_(m.weight.data)

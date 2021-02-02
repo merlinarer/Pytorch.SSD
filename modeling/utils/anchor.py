@@ -208,7 +208,7 @@ class SSDAnchorGenerator(AnchorGenerator):
                  image_size=300,
                  strides=(8,16,32,64,100,300),
                  ratios=([2],[2,3],[2,3],[2,3],[2,],[2]),
-                 size_ratio_range=(0.2, 0.9),
+                 size_ratio_range=(0.15, 0.9),
                  clip = False,
                  ):
 

@@ -33,7 +33,7 @@ def load_model(save_path, rm_module=True):
 
 
 def resume_from(save_path, rm_module=True):
-    checkpoint = torch.load(save_path)
+    checkpoint = torch.load(save_path, map_location=torch.device('cpu'))
     model_state_dict = checkpoint['model']
     optimizer_state_dict = checkpoint['optimizer']
     epoch = checkpoint['epoch']

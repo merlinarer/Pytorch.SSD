@@ -6,10 +6,17 @@ import os
 import time
 import numpy as np
 import json
+import gc
 import logging
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
+
+def xyxy_xywh(box):
+    w = box[2] - box[0]
+    h = box[3] - box[1]
+    return [box[0], box[1], w, h]
+    
 
 class logCOCOeval(COCOeval):
     def __init__(self, cocoGt=None, cocoDt=None, iouType='segm'):
@@ -151,8 +158,8 @@ class COCOMap(object):
         ACOCOeval.evaluate()
         ACOCOeval.accumulate()
         ACOCOeval.summarize()
-        # from IPython import embed
-        # embed()
+        del self.resFile
+        gc.collect()
 
     def load_classes(self):
         categories = self.coco.loadCats(self.coco.getCatIds())
@@ -211,7 +218,7 @@ class COCOMap(object):
                         result = {
                             "image_id": imgid[k],
                             "category_id": self.coco_labels[j - 1],
-                            "bbox": boxes[b].tolist(),
+                            "bbox": xyxy_xywh(boxes[b].tolist()),
                             "score": scores[b].item()
                         }
                         results.append(result)
@@ -221,7 +228,6 @@ class COCOMap(object):
                 detect_time = _t['eval'].toc(average=False)
                 print('eval: {:d}/{:d} {:.3f}s'.format(i,
                                                        self.num_images, detect_time))
-
         self.resFile = results
         print('Evaluating detections')
         self.coco_eval()
