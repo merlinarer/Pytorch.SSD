@@ -83,6 +83,10 @@ Cfg.SOLVER.VAL_BATCH_SIZE = 64
 Cfg.SOLVER.WARMUP = False
 Cfg.SOLVER.WARMUP_ITERS = 0
 
+# add for warmup and epoch step
+Cfg.SOLVER.LR_RATIO = 0.001
+Cfg.SOLVER.STEPS_EPOCH = [80, 110]
+
 # ---------------------------------------------------------------------------- #
 # Misc options
 # ---------------------------------------------------------------------------- #

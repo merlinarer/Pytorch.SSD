@@ -1,39 +1,80 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models as vggmodel
+from torchvision.models import VGG
 from .build import BACKBONE_REGISTRY
 
 __all__ = [
-    "SSDVGG",
+    "VGG",
 ]
 
 
+def conv3x3(in_planes, out_planes, dilation=1):
+    """3x3 convolution with padding."""
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        padding=dilation,
+        dilation=dilation)
+
+
+def make_vgg_layer(inplanes,
+                   planes,
+                   num_blocks,
+                   dilation=1,
+                   with_bn=False,
+                   ceil_mode=True):
+    layers = []
+    for _ in range(num_blocks):
+        layers.append(conv3x3(inplanes, planes, dilation))
+        if with_bn:
+            layers.append(nn.BatchNorm2d(planes))
+        layers.append(nn.ReLU(inplace=True))
+        inplanes = planes
+    layers.append(nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=ceil_mode))
+
+    return layers
+
+
 @BACKBONE_REGISTRY.register()
-class SSDVGG(nn.Module):
+class VGG(nn.Module):
+    setting = {
+        11: (1, 1, 2, 2, 2),
+        13: (2, 2, 2, 2, 2),
+        16: (2, 2, 3, 3, 3),
+        19: (2, 2, 4, 4, 4)
+    }
     extra_setting = {
         300: (256, 'S', 512, 128, 'S', 256, 128, 256, 128, 256),
         512: (256, 'S', 512, 128, 'S', 256, 128, 'S', 256, 128, 'S', 256, 128),
     }
 
-    def __init__(self, cfg):
+    def __init__(self,
+                 depth=16,
+                 input_size=300,
+                 out_feature_indices=(22, 34)):
         super().__init__()
-        self.depth = cfg.MODEL.BACKBONE.DEPTH
-        self.input_size = cfg.INPUT.SIZE_TRAIN
-        self.out_feature_indices = cfg.MODEL.BACKBONE.OUT_INDICES
-        self.pretrained = cfg.MODEL.BACKBONE.PRETRAIN_PATH
-
-        assert self.depth == 16, 'Only VGG 16 is supported now!'
-        assert self.input_size in [300, 512]
-
-        if self.pretrained is not None:
-            self.features = vggmodel.vgg16(pretrained=False).features
-        else:
-            self.features = vggmodel.vgg16(pretrained=True).features
-        for m in self.features.modules():
-            if isinstance(m, nn.MaxPool2d):
-                m.ceil_mode = True
-        del self.features[-1]
+        self.out_feature_indices = out_feature_indices
+        self.depth = depth
+        self.out_feature_indices = out_feature_indices
+        self.arc = self.setting[self.depth]
+        assert input_size in [300, 512]
+        self.input_size = input_size
+        layer = []
+        inplanes = 3
+        for i, num_blocks in enumerate(self.arc):
+            planes = 64 * 2 ** i if i < 4 else 512
+            tem_layer = make_vgg_layer(
+                inplanes=inplanes,
+                planes=planes,
+                num_blocks=num_blocks
+            )
+            inplanes = planes
+            layer.extend(tem_layer)
+        layer.pop(-1)
+        self.module_name = 'features'
+        self.add_module(self.module_name, nn.Sequential(*layer))
         self.features.add_module(
             str(len(self.features)),
             nn.MaxPool2d(kernel_size=3, stride=1, padding=1))
@@ -46,18 +87,29 @@ class SSDVGG(nn.Module):
             str(len(self.features)), nn.Conv2d(1024, 1024, kernel_size=1))
         self.features.add_module(
             str(len(self.features)), nn.ReLU(inplace=True))
+        self.out_feature_indices = out_feature_indices
 
         self.extra_inplanes = 1024
         self.extra = self.make_extra_layers(self.extra_inplanes,
                                             self.extra_setting[self.input_size])
         self.l2_norm = L2Norm()
-        self.init_weights()
 
-    def init_weights(self):
-        if self.pretrained is not None:
-            state_dict = torch.load(self.pretrained)
+    def init_weights(self, pretrained=None):
+        if pretrained is not None:
+            checkpoint = torch.load(pretrained)
+            if 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            if list(state_dict.keys())[0].startswith('module.'):
+                state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
             self.load_state_dict(state_dict, strict=False)
-            print('load pretrained model ',self.pretrained)
+        else:
+            for m in self.features.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.xavier_uniform_(m.weight.data)
+                    m.bias.data.zero_()
+
         for m in self.extra.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_uniform_(m.weight.data)
@@ -127,9 +179,9 @@ class L2Norm(nn.Module):
 
 
 if __name__ == '__main__':
-    network = SSDVGG(depth=16)
+    network = VGG(depth=16)
     print(network)
     dict_name = list(network.state_dict())
     # for i, p in enumerate(dict_name):
     #     print(i, p)
-    network.init_weights()
+    network.init_weights(pretrained='C:/Users/Merlin/Downloads/vgg16_caffe-292e1171.pth')

@@ -293,7 +293,8 @@ class PhotometricDistort(object):
 
 
 class SSDAugmentation(object):
-    def __init__(self, size=300, mean=(104, 117, 123)):
+    #123.675, 116.28, 103.53
+    def __init__(self, size=300, mean=(103.53, 116.28, 123.675)):
         self.mean = mean
         self.size = size
         self.augment = Compose([
@@ -320,7 +321,7 @@ def base_transform(image, size, mean):
 
 
 class BaseTransform:
-    def __init__(self, size=300, mean=(104, 117, 123)):
+    def __init__(self, size=300, mean=(103.53, 116.28, 123.675)):
         self.size = size
         self.mean = np.array(mean, dtype=np.float32)
 

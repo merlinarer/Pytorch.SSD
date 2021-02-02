@@ -44,7 +44,7 @@ def build_dataloader(cfg):
                                   pin_memory=False)
     val_loader = DataLoader(val_dataset,
                             batch_size=cfg.SOLVER.VAL_BATCH_SIZE,
-                            shuffle=True,
+                            shuffle=False,
                             num_workers=8,
                             collate_fn=collate,
                             pin_memory=False)

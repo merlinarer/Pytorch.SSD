@@ -16,7 +16,7 @@ def xyxy_xywh(box):
     w = box[2] - box[0]
     h = box[3] - box[1]
     return [box[0], box[1], w, h]
-    
+
 
 class logCOCOeval(COCOeval):
     def __init__(self, cocoGt=None, cocoDt=None, iouType='segm'):
@@ -201,7 +201,9 @@ class COCOMap(object):
             for k in range(out.shape[0]):
                 detections = out[k]
                 # skip j = 0, because it's the background class
-                for j in range(1, detections.size(0)):
+                for j in range(0, detections.size(0)-1):
+                #for j in range(1, detections.size(0)):
+
                     dets = detections[j, :]
                     mask = dets[:, 0].gt(0.).expand(5, dets.size(0)).t()
                     dets = torch.masked_select(dets, mask).view(-1, 5)
@@ -217,7 +219,7 @@ class COCOMap(object):
                     for b in range(boxes.shape[0]):
                         result = {
                             "image_id": imgid[k],
-                            "category_id": self.coco_labels[j - 1],
+                            "category_id": self.coco_labels[j],
                             "bbox": xyxy_xywh(boxes[b].tolist()),
                             "score": scores[b].item()
                         }
@@ -226,8 +228,10 @@ class COCOMap(object):
                     # embed()
                 i += 1
                 detect_time = _t['eval'].toc(average=False)
-                print('eval: {:d}/{:d} {:.3f}s'.format(i,
+                if i%100==0:
+                    print('eval: {:d}/{:d} {:.3f}s'.format(i,
                                                        self.num_images, detect_time))
+
         self.resFile = results
         print('Evaluating detections')
         self.coco_eval()

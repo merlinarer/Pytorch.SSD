@@ -2,13 +2,14 @@ MODEL:
   NAME: 'SSD'
   BACKBONE:
     NAME: 'SSDVGG'
-    PRETRAIN_PATH: 'pretrained/vgg16_caffe-292e1171.pth'
+    PRETRAIN_PATH: '/root/.cache/torch/hub/checkpoints/vgg16_caffe-292e1171.pth'
+    #PRETRAIN_PATH: '/workspace/code_dir/epoch_100.pth'
   HEADS:
     NAME: 'SSDHead'
     NUM_CLASSES: 81
   LOSSES:
     NAME: 'SSDLoss'
-  DEVICE_ID: '("1,2")'
+  DEVICE_ID: '("4")'
 
 INPUT:
   SIZE_TRAIN: 300
@@ -16,30 +17,32 @@ INPUT:
 
 DATA:
   NAME: 'COCO'
-  TRAINROOT: '/home/data/COCO/coco'
-  VALROOT: '/home/data/COCO/coco'
+  TRAINROOT: '/workspace/data_dir/coco'
+  VALROOT: '/workspace/data_dir/coco'
 
 SOLVER:
-  BATCH_SIZE: 32
-  VAL_BATCH_SIZE: 72
+  BATCH_SIZE: 8
+  VAL_BATCH_SIZE: 64
   CHECKPOINT_PERIOD: 10
   EVAL_PERIOD: 10
   OPTIMIZER_NAME: 'SGD'
-  MAX_EPOCHS: 1000
+  MAX_EPOCHS: 120
   BASE_LR: 0.002
   WEIGHT_DECAY: 0.0005
   MOMENTUM: 0.9
   STEPS: [160000, 200000]
+  STEPS_EPOCH: [80, 110 ]
   GAMMA: 0.1
 
   WARMUP: True
-  WARMUP_ITERS: 1000
+  WARMUP_ITERS: 2500
+  LR_RATIO: 0.001
 
-DISTRIBUTE: False
-LAUNCH: False
+DISTRIBUTE: True
+LAUNCH: True
 VARIRANCE: [0.1, 0.2]
-OUTPUT_DIR: "output/temp"
+OUTPUT_DIR: "output/ddp_coco_warm2500"
 
 RESUME: False
-LOAD_FROM: "output/cocotrainval35k_bs32_singleGPU_evalfixed/epoch_100.pth"
+LOAD_FROM: "/workspace/code_dir/Pytorch.SSD/output/ddp/epoch_70.pth"
 

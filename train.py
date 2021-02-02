@@ -25,12 +25,15 @@ def main():
                         type=str)
     parser.add_argument('--local_rank', help='local rank', type=int, default=-1)
     parser.add_argument("--local_world_size", type=int, default=1)
+    parser.add_argument("--master_port", type=int, default=29500)
     parser.add_argument("opts",
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
 
     args = parser.parse_args()
+
+    os.environ['MASTER_PORT']=str(args.master_port)
 
     assert args.config_file != "", 'Config_file is in need !'
     cfgname = os.path.basename(args.config_file).split('.')[0]

@@ -12,7 +12,7 @@ import logging
 
 from utils.logger import setup_logger
 from utils.checkpoint import save_checkpoint, resume_from
-from utils.lr import adjust_learning_rate
+from utils.lr import adjust_learning_rate, adjust_learning_rate_epoch
 
 from data import build_dataloader
 
@@ -51,7 +51,7 @@ def train_with_ddp(local_rank,
             f"[{os.getpid()}] rank = {dist.get_rank()}, "
             + f"world_size = {dist.get_world_size()}, n = {n}, device_ids = {device_ids} \n", end=''
         )
-    dist.barrier()
+        dist.barrier()
     if dist.get_rank()==0:
         writer = SummaryWriter(log_dir='log')
 
@@ -96,6 +96,8 @@ def train_with_ddp(local_rank,
         logger.info('-' * 10)
 
         running_loss = 0.0
+        running_loss_cls = 0.0
+        running_loss_box = 0.0
         # Iterate over data
         it = 0
         for imgs, gt_bb, gt_label, _ in train_loader:
@@ -115,22 +117,52 @@ def train_with_ddp(local_rank,
                 gt_bb = [Variable(ann.cuda(), requires_grad=False) for ann in gt_bb]
                 gt_label = [Variable(ann.cuda(), requires_grad=False) for ann in gt_label]
 
-            loss = model.module.loss_fn(out, (gt_bb, gt_label))
+            # test ddp
+            # if dist.get_rank()==0:
+            #     loss_start = time.time()
+            loss_cls, loss_box = model.module.loss_fn(out, (gt_bb, gt_label))
+            loss = loss_cls+loss_box
+            # if dist.get_rank()==0:
+            #     loss_expand = time.time()-loss_start
+            #     loss_c+=1
+            #     loss_total+=loss_expand
+            # if dist.get_rank()==0:
+            #     back_start = time.time()
             loss.backward()
+            dist.barrier()
+            # if dist.get_rank()==0:
+            #     back_expand = time.time()-back_start
+            #     back_c+=1
+            #     back_total+=back_expand
+            #
+            # if dist.get_rank()==0:
+            #     opt = time.time()
             optimizer.step()
-            past_iter = int(epoch * len(train_loader.dataset) / cfg.SOLVER.BATCH_SIZE)
-            adjust_learning_rate(cfg, optimizer, past_iter + it)
+            # if dist.get_rank()==0:
+            #     opt_expand = time.time()-opt
+            #     opt_total += opt_expand
+            #
+            # if dist.get_rank()==0:
+            #     other = time.time()
+            past_iter = int(epoch * len(train_loader))
+            adjust_learning_rate_epoch(cfg, optimizer, past_iter + it, epoch+1, it)
 
             loss_value = loss.data.clone()
             dist.all_reduce(loss_value.div_(dist.get_world_size()))
+            loss_cls_value = loss_cls.data.clone()
+            dist.all_reduce(loss_cls_value.div_(dist.get_world_size()))
+            loss_box_value = loss_box.data.clone()
+            dist.all_reduce(loss_box_value.div_(dist.get_world_size()))
             # statistics
             with torch.no_grad():
                 running_loss += loss_value.detach().item()
+                running_loss_cls += loss_cls_value.detach().item()
+                running_loss_box += loss_box_value.detach().item()
 
-            if it % 10 == 0:
+            if it % 200 == 0:
                 logger.info(
-                    'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
-                        epoch + 1, it, running_loss / it,
+                    'epoch {}, iter {}/{}, loss_cls: {:.3f}, loss_box: {:.3f}, loss: {:.3f}, lr: {:.3e}'.format(
+                        epoch + 1, it, len(train_loader),running_loss_cls / it,running_loss_box / it,running_loss / it,
                         optimizer.param_groups[0]['lr']))
                 if dist.get_rank()==0:
                     writer.add_scalar('loss', running_loss / it, global_step=past_iter + it)
@@ -158,7 +190,6 @@ def train_with_ddp(local_rank,
             model.module.head.nms = True
             ap(model, val_loader)
             model.module.head.nms = False
-
 
 def train_with_dp(cfg):
     # logger
@@ -208,11 +239,11 @@ def train_with_dp(cfg):
         # Iterate over data
         it = 0
         for imgs, gt_bb, gt_label, _ in train_loader:
+            it += 1
             inputs = Variable(imgs.cuda(), requires_grad=False)
             now_batch_size, c, h, w = imgs.shape
             if now_batch_size < cfg.SOLVER.BATCH_SIZE:  # skip the last batch
                 continue
-            it += 1
 
             # zero the gradients
             optimizer.zero_grad()
@@ -236,7 +267,7 @@ def train_with_dp(cfg):
 
             if it % 10 == 0:
                 logger.info(
-                    'epoch {}, iter {}, loss: {:.3f}, lr: {:.5f}'.format(
+                    'epoch {}, iter {}, loss: {:.3f}, lr: {:.3e}'.format(
                         epoch + 1, it, running_loss / it,
                         optimizer.param_groups[0]['lr']))
 
