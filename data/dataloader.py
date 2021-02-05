@@ -17,6 +17,46 @@ import xml.etree.ElementTree as ET
 import cv2
 from pycocotools.coco import COCO
 
+# Repeat Dataset
+
+class RepeatDataset(object):
+    """A wrapper of repeated dataset.
+
+    The length of repeated dataset will be `times` larger than the original
+    dataset. This is useful when the data loading time is long but the dataset
+    is small. Using RepeatDataset can reduce the data loading time between
+    epochs.
+
+    Args:
+        dataset (:obj:`Dataset`): The dataset to be repeated.
+        times (int): Repeat times.
+    """
+
+    def __init__(self, dataset, times):
+        self.dataset = dataset
+        self.times = times
+        self.CLASSES = dataset.CLASSES
+
+        self._ori_len = len(self.dataset)
+
+    def __getitem__(self, idx):
+        return self.dataset[idx % self._ori_len]
+
+    # def get_cat_ids(self, idx):
+    #     """Get category ids of repeat dataset by index.
+    #
+    #     Args:
+    #         idx (int): Index of data.
+    #
+    #     Returns:
+    #         list[int]: All categories in the image of specified index.
+    #     """
+    #
+    #     return self.dataset.get_cat_ids(idx % self._ori_len)
+
+    def __len__(self):
+        """Length after repetition."""
+        return self.times * self._ori_len
 
 # Custom Dataset
 class CustomDataset(Dataset):
@@ -149,7 +189,7 @@ class COCODataset(Dataset):
         self.transform = transform
         self.coco = COCO(os.path.join(self.root, 'annotations', 'instances_'
                                       + self.type + '.json'))
-        # self.image_ids = self.coco.getImgIds()[:1000]  # for test
+        #self.image_ids = self.coco.getImgIds()[:2000]  # for test
         self.image_ids = self.coco.getImgIds()
         self.load_classes()
 
@@ -167,13 +207,13 @@ class COCODataset(Dataset):
         # classes:             {names:      new_index}
         # coco_labels:         {new_index:  coco_index}
         # coco_labels_inverse: {coco_index: new_index}
-        self.classes, self.coco_labels, self.coco_labels_inverse = {}, {}, {}
+        self.CLASSES, self.coco_labels, self.coco_labels_inverse = {}, {}, {}
         for c in categories:
-            self.coco_labels[len(self.classes)] = c['id']
-            self.coco_labels_inverse[c['id']] = len(self.classes)
-            self.classes[c['name']] = len(self.classes)
+            self.coco_labels[len(self.CLASSES)] = c['id']
+            self.coco_labels_inverse[c['id']] = len(self.CLASSES)
+            self.CLASSES[c['name']] = len(self.CLASSES)
         self.labels = {}
-        for k, v in self.classes.items():
+        for k, v in self.CLASSES.items():
             self.labels[v] = k
 
     def __len__(self):
@@ -203,7 +243,7 @@ class COCODataset(Dataset):
 
     def load_image(self, index):
         image_info = self.coco.loadImgs(self.image_ids[index])[0]
-        imgpath = os.path.join(self.root, self.type,
+        imgpath = os.path.join(self.root,'images', self.type,
                                image_info['file_name'])
 
         return imgpath
@@ -228,6 +268,9 @@ class COCODataset(Dataset):
             ann = np.zeros((1, 5))
             ann[0, :4] = a['bbox']
             ann[0, 4] = self.coco_labels_inverse[a['category_id']]
+            # if self.coco_labels_inverse[a['category_id']] == 0:
+            #     print(a['category_id'])
+            #     print('coco_labels',self.coco_labels_inverse[a['category_id']])
             anns = np.append(anns, ann, axis=0)
 
         # (x1, y1, width, height) --> (x1, y1, x2, y2)
@@ -238,7 +281,6 @@ class COCODataset(Dataset):
         anns[:, 1] /= h
         anns[:, 2] /= w
         anns[:, 3] /= h
-
         return np.array(anns[:, :4], dtype=np.float32), \
                np.array(anns[:, 4], dtype=np.int64)
 

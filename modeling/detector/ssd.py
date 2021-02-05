@@ -26,7 +26,7 @@ class SSD(nn.Module):
         return x
 
     def loss_fn(self, out, gt):
-        return self.head.loss_(out, gt, )
+        return self.head.loss(out, gt, )
 
 
 if __name__ == '__main__':

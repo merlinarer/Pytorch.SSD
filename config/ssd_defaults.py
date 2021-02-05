@@ -59,6 +59,10 @@ Cfg.DATA.PIXEL_MEAN = [0.485 * 255, 0.456 * 255, 0.406 * 255]
 # Values to be used for image normalization
 Cfg.DATA.PIXEL_STD = [0.229 * 255, 0.224 * 255, 0.225 * 255]
 
+# add Repeat Dataset
+Cfg.DATA.REPEAT = False
+Cfg.DATA.REPEAT_TIMES = 0
+
 # ---------------------------------------------------------------------------- #
 # Solver
 # ---------------------------------------------------------------------------- #

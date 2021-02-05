@@ -6,7 +6,7 @@
 import torch
 from utils.collate import collate
 from torch.utils.data import DataLoader
-from data.dataloader import VOCDataset, COCODataset
+from data.dataloader import VOCDataset, COCODataset, RepeatDataset
 from data import SSDAugmentation, BaseTransform
 
 
@@ -19,6 +19,9 @@ def build_dataloader(cfg):
         val_dataset = VOCDataset(root=cfg.DATA.VALROOT,
                                  transform=BaseTransform(),
                                  type='test')
+        if cfg.DATA.REPEAT:
+            assert cfg.DATA.REPEAT_TIMES > 0
+            train_dataset = RepeatDataset(train_dataset, cfg.DATA.REPEAT_TIMES)
     else:
         train_dataset = COCODataset(root=cfg.DATA.TRAINROOT,
                                     transform=SSDAugmentation(),
@@ -26,6 +29,9 @@ def build_dataloader(cfg):
         val_dataset = COCODataset(root=cfg.DATA.VALROOT,
                                   transform=BaseTransform(),
                                   type='val2017')
+        if cfg.DATA.REPEAT:
+            assert cfg.DATA.REPEAT_TIMES > 0
+            train_dataset = RepeatDataset(train_dataset, cfg.DATA.REPEAT_TIMES)
 
     if cfg.DISTRIBUTE:
         sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)

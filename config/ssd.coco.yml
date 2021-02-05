@@ -19,30 +19,32 @@ DATA:
   NAME: 'COCO'
   TRAINROOT: '/workspace/data_dir/coco'
   VALROOT: '/workspace/data_dir/coco'
+  REPEAT: True
+  REPEAT_TIMES: 5
 
 SOLVER:
   BATCH_SIZE: 8
   VAL_BATCH_SIZE: 64
-  CHECKPOINT_PERIOD: 10
-  EVAL_PERIOD: 10
+  CHECKPOINT_PERIOD: 2
+  EVAL_PERIOD: 2
   OPTIMIZER_NAME: 'SGD'
-  MAX_EPOCHS: 120
+  MAX_EPOCHS: 24
   BASE_LR: 0.002
   WEIGHT_DECAY: 0.0005
   MOMENTUM: 0.9
   STEPS: [160000, 200000]
-  STEPS_EPOCH: [80, 110 ]
+  STEPS_EPOCH: [16, 22 ]
   GAMMA: 0.1
 
   WARMUP: True
-  WARMUP_ITERS: 2500
+  WARMUP_ITERS: 500
   LR_RATIO: 0.001
 
 DISTRIBUTE: True
 LAUNCH: True
 VARIRANCE: [0.1, 0.2]
-OUTPUT_DIR: "output/ddp_coco_warm2500"
+OUTPUT_DIR: "output/ddp_coco_repeat5"
 
-RESUME: False
-LOAD_FROM: "/workspace/code_dir/Pytorch.SSD/output/ddp/epoch_70.pth"
+RESUME: True
+LOAD_FROM: "/workspace/code_dir/Pytorch.SSD/output/ddp_coco_repeat5/epoch_2.pth"
 
