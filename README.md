@@ -1,14 +1,12 @@
 # Pytorch.SSD
-A strong implement of SSD ~
+This repo is a strong Pytorch implementation of SSD ~
 
 ## [Pytorch.SSD v1 Release](https://github.com/merlinarer/Pytorch.SSD/releases/tag/v1)
-1、The nms is update to torchvision cuda nms, which is much fasater when eval and test
 
-2、Model init is update to xavier_uniform_, which makes the model converge more faster
-
-3、Warmup lr is added
-
-4、Good performance
+- Update the nms to torchvision cuda one, which is much fasater
+- Update model init to xavier_uniform_, making the model converge more faster
+- Warmup lr is added
+- Good performance
 
 |method|train data|test data|mAP|aero|bike|bird|boat|bottle|bus|car|cat|chair|cow|table|dog|horse|mbike|person|plant|sheep|sofa|train|tv|
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -17,13 +15,11 @@ A strong implement of SSD ~
 |SSD (ours)|VOC 2007 trainval|VOC 2007 test|0.7240|0.7761|0.8111|0.6898|0.6253|0.4399|0.8108|0.8368|0.8259|0.5456|0.7754|0.7227|0.7991|0.8242|0.7956|0.7679|0.4565|0.6967|0.7368|0.8300|0.7228|
 
 ## [Pytorch.SSD v0 Release](https://github.com/merlinarer/Pytorch.SSD/releases/tag/v0)
-1、The model can be trained with eval
-
-2、The cfg paras is defined in yaml file, which is then merged with args.opts
+- The model can be trained smoothly
+- The cfg paras is defined in yaml file, which is then merged with args.opts
 
 ## References
 > Wei Liu, et al. "SSD: Single Shot MultiBox Detector." ECCV2016.
 
 > [ssd.pytorch](https://github.com/amdegroot/ssd.pytorch)
-
 > [mmdetection](https://github.com/open-mmlab/mmdetection)
